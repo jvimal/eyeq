@@ -43,7 +43,7 @@ u64 ISO_FEEDBACK_PACKET_IPPROTO = 143; // should be some unused protocol
 
 // New parameters
 u64 ISO_RL_UPDATE_INTERVAL_US = 200;
-int ISO_BURST_FACTOR = 8;
+u64 ISO_BURST_FACTOR = 8;
 u64 ISO_VQ_UPDATE_INTERVAL_US = 100;
 
 struct iso_param iso_params[32] = {
@@ -71,10 +71,13 @@ struct iso_param iso_params[32] = {
   {"IsoAutoGenerateFeedback", &IsoAutoGenerateFeedback },
   {"ISO_FEEDBACK_PACKET_IPPROTO", &ISO_FEEDBACK_PACKET_IPPROTO },
   {"ISO_FEEDBACK_INTERVAL_US", &ISO_FEEDBACK_INTERVAL_US },
+  {"ISO_RL_UPDATE_INTERVAL_US", &ISO_RL_UPDATE_INTERVAL_US },
+  {"ISO_BURST_FACTOR", &ISO_BURST_FACTOR },
+  {"ISO_VQ_UPDATE_INTERVAL_US", &ISO_VQ_UPDATE_INTERVAL_US },
   {"", NULL},
 };
 
-int iso_num_params = 24;
+int iso_num_params = 27;
 
 /* Local Variables: */
 /* indent-tabs-mode:t */
