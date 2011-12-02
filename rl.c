@@ -37,7 +37,7 @@ void iso_rl_free(struct iso_rl *rl) {
 	kfree(rl);
 }
 
-static int iso_rl_should_refill(struct iso_rl *rl) {
+inline int iso_rl_should_refill(struct iso_rl *rl) {
 	ktime_t now = ktime_get();
 	if(ktime_us_delta(now, rl->last_update_time) > ISO_RL_UPDATE_INTERVAL_US)
 		return 1;
