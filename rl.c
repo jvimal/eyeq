@@ -59,10 +59,12 @@ void iso_rl_clock(struct iso_rl *rl) {
 	spin_unlock_irqrestore(&rl->spinlock, flags);
 }
 
-void iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt) {
+enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt) {
 	// enqueue to cpu's queue
 	int cpu = smp_processor_id();
 	struct iso_rl_queue *q = per_cpu_ptr(rl->queue, cpu);
+	enum iso_verdict verdict;
+
 	iso_rl_clock(rl);
 
 	spin_lock(&q->spinlock);
@@ -73,14 +75,16 @@ void iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt) {
 	q->queue[q->tail++] = pkt;
 	q->tail = q->tail & ISO_MAX_QUEUE_LEN_PKT;
 	q->length++;
+	verdict = ISO_VERDICT_SUCCESS;
 	goto done;
 
  drop:
-	skb_drop(pkt);
+	verdict = ISO_VERDICT_DROP;
 
  done:
 	spin_unlock(&q->spinlock);
 	iso_rl_dequeue((unsigned long)q);
+	return verdict;
 }
 
 inline ktime_t iso_rl_gettimeout() {

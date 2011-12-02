@@ -19,6 +19,11 @@
 
 #include "params.h"
 
+enum iso_verdict {
+	ISO_VERDICT_SUCCESS,
+	ISO_VERDICT_DROP
+};
+
 struct iso_rl_queue {
 	struct sk_buff *queue[ISO_MAX_QUEUE_LEN_PKT];
 	int head;
@@ -48,7 +53,7 @@ void iso_rl_destroy(struct iso_rl *);
 static int iso_rl_should_refill(struct iso_rl *);
 inline u64 iso_rl_cap_tokens(u64);
 void iso_rl_clock(struct iso_rl *);
-void iso_rl_enqueue(struct iso_rl *, struct sk_buff *);
+enum iso_verdict iso_rl_enqueue(struct iso_rl *, struct sk_buff *);
 void iso_rl_dequeue(unsigned long);
 enum hrtimer_restart iso_rl_timeout(struct hrtimer *);
 int iso_rl_borrow_tokens(struct iso_rl *, struct iso_rl_queue *);
