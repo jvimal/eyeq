@@ -47,6 +47,9 @@ struct iso_vq {
 #define ISO_VQ_DEFAULT_RATE_MBPS (100) /* This parameter shouldn't matter */
 
 void iso_vqs_init(void);
+void iso_vqs_exit(void);
+int iso_vq_init(struct iso_vq *);
+void iso_vq_free(struct iso_vq *);
 void iso_vq_enqueue(struct iso_vq *, struct sk_buff *, u32);
 inline int iso_vq_active(struct iso_vq *);
 void iso_vq_tick(u64);

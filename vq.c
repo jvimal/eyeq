@@ -1,3 +1,4 @@
+
 #include "vq.h"
 
 static s64 vq_total_tokens;
@@ -9,10 +10,17 @@ void iso_vqs_init() {
 	INIT_LIST_HEAD(&vq_list);
 	vq_total_tokens = 0;
 	vq_last_update_time = ktime_get();
-	//spinlock_init(&vq->spinlock);
+	spin_lock_init(&vq_spinlock);
 }
 
-void iso_vq_init(struct iso_vq *vq) {
+void iso_vqs_exit() {
+	struct iso_vq *vq;
+	for_each_vq(vq) {
+		iso_vq_free(vq);
+	}
+}
+
+int iso_vq_init(struct iso_vq *vq) {
 	vq->enabled = 1;
 	vq->active = 0;
 	vq->is_static = 0;
@@ -20,9 +28,20 @@ void iso_vq_init(struct iso_vq *vq) {
 	vq->backlog = 0;
 	vq->weight = 1;
 	vq->last_update_time = ktime_get();
+
 	vq->percpu_stats = alloc_percpu(struct iso_vq_stats);
+	if(vq->percpu_stats == NULL)
+		return -ENOMEM;
+
 	spin_lock_init(&vq->spinlock);
 	INIT_LIST_HEAD(&vq->list);
+	return 0;
+}
+
+void iso_vq_free(struct iso_vq *vq) {
+	list_del_rcu(&vq->list);
+	free_percpu(vq->percpu_stats);
+	kfree(vq);
 }
 
 void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt, u32 len) {
