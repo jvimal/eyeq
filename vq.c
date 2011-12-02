@@ -53,7 +53,7 @@ void iso_vq_tick(u64 dt) {
 	struct iso_vq *vq;
 
 	vq_total_tokens += diff_tokens;
-	vq_total_tokens = min((ISO_VQ_DRAIN_RATE_MBPS * ISO_MAX_BURST_TIME_US) >> 3,
+	vq_total_tokens = min((u64)(ISO_VQ_DRAIN_RATE_MBPS * ISO_MAX_BURST_TIME_US) >> 3,
 						  diff_tokens);
 
 	for_each_vq(vq) {

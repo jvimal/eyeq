@@ -37,7 +37,7 @@ static int iso_rl_should_refill(struct iso_rl *rl) {
 }
 
 inline u64 iso_rl_cap_tokens(u64 tokens) {
-	return min(tokens, ISO_MIN_BURST_BYTES);
+	return min(tokens, (u64)ISO_MIN_BURST_BYTES);
 }
 
 /* This function could be called from HARDIRQ context */
