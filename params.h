@@ -54,6 +54,11 @@ extern int ISO_VQ_UPDATE_INTERVAL_US;
 // MUST be 1 less than a power of 2
 #define ISO_MAX_QUEUE_LEN_PKT (127)
 
+/* These MUST be a power of 2 as well */
+#define ISO_MAX_TX_BUCKETS (32)
+#define ISO_MAX_RL_BUCKETS (128)
+#define ISO_MAX_STATE_BUCKETS (256)
+
 struct iso_param {
 	char name[64];
 	int *ptr;
