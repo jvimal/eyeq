@@ -1,3 +1,7 @@
+#ifndef __PARAMS_H__
+#define __PARAMS_H__
+
+
 #include <linux/types.h>
 
 extern int ISO_FALPHA;
@@ -60,6 +64,9 @@ extern int iso_num_params;
 
 int iso_params_init(void);
 void iso_params_exit(void);
+
+
+#endif /* __PARAMS_H__ */
 
 /* Local Variables: */
 /* indent-tabs-mode:t */
