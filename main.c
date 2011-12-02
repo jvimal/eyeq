@@ -27,7 +27,8 @@ static int iso_init() {
 		printk(KERN_INFO "perfiso: operating on %s\n", iso_param_dev);
 	}
 
-	iso_params_init();
+	if(iso_params_init())
+		goto err;
 
 	if(iso_rx_init())
 		goto err;
