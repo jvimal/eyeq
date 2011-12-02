@@ -60,9 +60,7 @@ int iso_rl_borrow_tokens(struct iso_rl *, struct iso_rl_queue *);
 inline ktime_t iso_rl_gettimeout(void);
 inline u64 iso_rl_singleq_burst(struct iso_rl *);
 
-void skb_xmit(struct sk_buff *);
-void skb_drop(struct sk_buff *);
-void skb_consume(struct sk_buff *);
+inline void skb_xmit(struct sk_buff *skb);
 
 static inline int skb_size(struct sk_buff *skb) {
 	return skb->len;
