@@ -1,50 +1,52 @@
+
+#include <linux/sysctl.h>
 #include "params.h"
 
 // params
-u64 ISO_FALPHA = 2;
+int ISO_FALPHA = 2;
 /* All rates are in Mbps */
-u64 ISO_MAX_TX_RATE = 10000;
+int ISO_MAX_TX_RATE = 10000;
 // The VQ's net drain rate in Mbps is 90% of 10G ~ 9000 Mbps
-u64 ISO_VQ_DRAIN_RATE_MBPS = 9000;
-u64 ISO_MAX_BURST_TIME_US = 1000;
-u64 ISO_MIN_BURST_BYTES = 1;
-u64 ISO_RATEMEASURE_INTERVAL_US = 1000 * 100;
-u64 ISO_TOKENBUCKET_TIMEOUT_NS = 1000 * 1000;
-u64 ISO_TOKENBUCKET_MARK_THRESH_BYTES = 512 * 1024;
-u64 ISO_TOKENBUCKET_DROP_THRESH_BYTES = 512 * 1024;
-u64 ISO_VQ_MARK_THRESH_BYTES = 1024 * 1000;
-u64 ISO_VQ_MAX_BYTES = 2048 * 1024;
-u64 ISO_RFAIR_INITIAL = 100;
-u64 ISO_MIN_RFAIR = 1;
-u64 ISO_RFAIR_INCREMENT = 10;
-u64 ISO_RFAIR_DECREASE_INTERVAL_US = 5000;
-u64 ISO_RFAIR_INCREASE_INTERVAL_US = 5000;
-u64 ISO_RFAIR_FEEDBACK_TIMEOUT_US = 1000 * 1000;
-u64 ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE = 10;
-u64 IsoGlobalEnabled = 0;
-u64 IsoEnablePortClassMap = 0;
+int ISO_VQ_DRAIN_RATE_MBPS = 9000;
+int ISO_MAX_BURST_TIME_US = 1000;
+int ISO_MIN_BURST_BYTES = 1;
+int ISO_RATEMEASURE_INTERVAL_US = 1000 * 100;
+int ISO_TOKENBUCKET_TIMEOUT_NS = 1000 * 1000;
+int ISO_TOKENBUCKET_MARK_THRESH_BYTES = 512 * 1024;
+int ISO_TOKENBUCKET_DROP_THRESH_BYTES = 512 * 1024;
+int ISO_VQ_MARK_THRESH_BYTES = 1024 * 1000;
+int ISO_VQ_MAX_BYTES = 2048 * 1024;
+int ISO_RFAIR_INITIAL = 100;
+int ISO_MIN_RFAIR = 1;
+int ISO_RFAIR_INCREMENT = 10;
+int ISO_RFAIR_DECREASE_INTERVAL_US = 5000;
+int ISO_RFAIR_INCREASE_INTERVAL_US = 5000;
+int ISO_RFAIR_FEEDBACK_TIMEOUT_US = 1000 * 1000;
+int ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE = 10;
+int IsoGlobalEnabled = 0;
+int IsoEnablePortClassMap = 0;
 
 // DEBUG: setting it to 666 means we will ALWAYS generate feedback for
 // EVERY packet!
 // USE IT ONLY FOR DEBUGGING.  You've been warned.
-u64 IsoAlwaysFeedback = 0;
+int IsoAlwaysFeedback = 0;
 
 // This param is a fail-safe.  If anything goes wrong and we reboot,
 // we recover to a fail-safe state.
-u64 IsoAutoGenerateFeedback = 0;
-u64 ISO_FEEDBACK_INTERVAL_US = 500;
+int IsoAutoGenerateFeedback = 0;
+int ISO_FEEDBACK_INTERVAL_US = 500;
 
 // TODO: We are assuming that we don't need to do any VLAN tag
 // ourselves
-const u64 ISO_FEEDBACK_PACKET_SIZE = 64;
+const int ISO_FEEDBACK_PACKET_SIZE = 64;
 const u16 ISO_FEEDBACK_HEADER_SIZE = 14 + 20;
 const u8 ISO_FEEDBACK_PACKET_TTL = 64;
-u64 ISO_FEEDBACK_PACKET_IPPROTO = 143; // should be some unused protocol
+int ISO_FEEDBACK_PACKET_IPPROTO = 143; // should be some unused protocol
 
 // New parameters
-u64 ISO_RL_UPDATE_INTERVAL_US = 200;
-u64 ISO_BURST_FACTOR = 8;
-u64 ISO_VQ_UPDATE_INTERVAL_US = 100;
+int ISO_RL_UPDATE_INTERVAL_US = 200;
+int ISO_BURST_FACTOR = 8;
+int ISO_VQ_UPDATE_INTERVAL_US = 100;
 
 struct iso_param iso_params[32] = {
   {"ISO_FALPHA", &ISO_FALPHA },
@@ -78,6 +80,40 @@ struct iso_param iso_params[32] = {
 };
 
 int iso_num_params = 27;
+struct ctl_table iso_params_table[32];
+struct ctl_path iso_params_path[] = {
+	{ .procname = "perfiso" },
+	{ },
+};
+struct ctl_table_header *iso_sysctl;
+
+int iso_params_init() {
+	int i;
+
+	memset(iso_params_table, 0, sizeof(iso_params_table));
+
+	for(i = 0; i < iso_num_params; i++) {
+		struct ctl_table *entry = &iso_params_table[i];
+		entry->procname = iso_params[i].name;
+		entry->data = iso_params[i].ptr;
+		entry->maxlen = sizeof(int);
+		entry->mode = 0644;
+		entry->proc_handler = proc_dointvec;
+	}
+
+	iso_sysctl = register_sysctl_paths(iso_params_path, iso_params_table);
+	if(iso_sysctl == NULL)
+		goto err;
+
+	return 0;
+
+ err:
+	return -1;
+}
+
+void iso_params_exit() {
+	unregister_sysctl_table(iso_sysctl);
+}
 
 /* Local Variables: */
 /* indent-tabs-mode:t */
