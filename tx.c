@@ -45,12 +45,11 @@ void iso_txc_init(struct iso_tx_class *tx) {
 	INIT_HLIST_NODE(&tx->hash_node);
 }
 
-static inline struct hlist_head *iso_txc_find_bucket(unsigned long klass) {
-	klass >>= 12;
-	return &iso_tx_bucket[klass & (ISO_MAX_TX_BUCKETS - 1)];
+static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
+	return &iso_tx_bucket[(((unsigned long)klass) >> 12) & (ISO_MAX_TX_BUCKETS - 1)];
 }
 
-struct iso_tx_class *iso_txc_alloc(unsigned long klass) {
+struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 	struct iso_tx_class *txc = kmalloc(sizeof(*txc), GFP_KERNEL);
 	struct hlist_head *head;
 
@@ -93,15 +92,23 @@ void iso_txc_free(struct iso_tx_class *txc) {
 		}
 	}
 
+	/* Release the class; it could be an interface */
+	iso_class_free(txc->klass);
+
+	kfree(txc);
 }
 
 /* First attempt: out device classification.  Its address is usually
    aligned, so shift out the zeroes */
-inline unsigned long iso_txc_classify(struct sk_buff *pkt) {
-	return ((unsigned long)pkt->dev);
+inline iso_class_t iso_txc_classify(struct sk_buff *pkt) {
+	return pkt->dev;
 }
 
-inline struct iso_tx_class *iso_txc_find(unsigned long klass) {
+inline void iso_class_free(iso_class_t klass) {
+	dev_put((struct net_device *)klass);
+}
+
+inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
 	struct hlist_head *head = iso_txc_find_bucket(klass);
 	struct iso_tx_class *txc;
 	struct hlist_node *n;

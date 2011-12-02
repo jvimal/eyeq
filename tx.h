@@ -4,6 +4,8 @@
 
 #include "rl.h"
 
+typedef struct net_device *iso_class_t;
+
 /* Per-dest state */
 struct iso_per_dest_state {
 	u32 ip_key;
@@ -16,7 +18,7 @@ struct iso_per_dest_state {
 
 /* The unit of fairness */
 struct iso_tx_class {
-	unsigned long klass;
+	iso_class_t klass;
 	struct hlist_head rl_bucket[ISO_MAX_RL_BUCKETS];
 	struct hlist_head state_bucket[ISO_MAX_STATE_BUCKETS];
 
@@ -36,11 +38,12 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 
 
 void iso_txc_init(struct iso_tx_class *);
-struct iso_tx_class *iso_txc_alloc(unsigned long);
+struct iso_tx_class *iso_txc_alloc(iso_class_t);
 void iso_txc_free(struct iso_tx_class *);
 
-inline unsigned long iso_txc_classify(struct sk_buff *);
-inline struct iso_tx_class *iso_txc_find(unsigned long);
+inline iso_class_t iso_txc_classify(struct sk_buff *);
+inline void iso_class_free(iso_class_t);
+inline struct iso_tx_class *iso_txc_find(iso_class_t);
 
 /* Local Variables: */
 /* indent-tabs-mode:t */
