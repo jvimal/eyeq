@@ -46,6 +46,7 @@ void iso_txc_init(struct iso_tx_class *tx) {
 }
 
 static inline struct hlist_head *iso_txc_find_bucket(unsigned long klass) {
+	klass >>= 12;
 	return &iso_tx_bucket[klass & (ISO_MAX_TX_BUCKETS - 1)];
 }
 
@@ -97,7 +98,7 @@ void iso_txc_free(struct iso_tx_class *txc) {
 /* First attempt: out device classification.  Its address is usually
    aligned, so shift out the zeroes */
 inline unsigned long iso_txc_classify(struct sk_buff *pkt) {
-	return ((unsigned long)pkt->dev) >> 10;
+	return ((unsigned long)pkt->dev);
 }
 
 inline struct iso_tx_class *iso_txc_find(unsigned long klass) {
