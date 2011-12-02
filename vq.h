@@ -37,8 +37,6 @@ struct iso_vq {
 
 	ktime_t last_update_time;
 
-	// DEFINE_PER_CPU(u64, bytes_queued);
-	// DEFINE_PER_CPU(u64, network_marked);
 	struct iso_vq_stats __percpu *percpu_stats;
 	spinlock_t spinlock;
 
