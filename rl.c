@@ -25,8 +25,16 @@ void iso_rl_init(struct iso_rl *rl) {
 	}
 }
 
-void iso_rl_destroy(struct iso_rl *rl) {
+void iso_rl_free(struct iso_rl *rl) {
+	int i;
+	for_each_possible_cpu(i) {
+		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
+		hrtimer_cancel(&q->timer);
+		tasklet_kill(&q->xmit_timeout);
+		/* TODO: Flush the queue? */
+	}
 	free_percpu(rl->queue);
+	kfree(rl);
 }
 
 static int iso_rl_should_refill(struct iso_rl *rl) {
