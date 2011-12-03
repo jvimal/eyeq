@@ -10,7 +10,6 @@ typedef struct net_device *iso_class_t;
 struct iso_per_dest_state {
 	u32 ip_key;
 	struct iso_rl *rl;
-	struct iso_vq *vq;
 
 	/* Tx and Rx state = stats + control variables */
 	struct {
@@ -28,9 +27,11 @@ struct iso_per_dest_state {
 /* The unit of fairness */
 struct iso_tx_class {
 	iso_class_t klass;
+
 	struct hlist_head rl_bucket[ISO_MAX_RL_BUCKETS];
 	struct hlist_head state_bucket[ISO_MAX_STATE_BUCKETS];
 
+	struct iso_vq *vq;
 	struct list_head list;
 	struct hlist_node hash_node;
 };
