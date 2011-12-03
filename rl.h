@@ -41,6 +41,7 @@ struct iso_rl_queue {
 };
 
 struct iso_rl {
+	__le32 ip;
 	u64 rate;
 	u64 total_tokens;
 	ktime_t last_update_time;
