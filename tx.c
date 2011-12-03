@@ -34,15 +34,16 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 }
 
 void iso_txc_init(struct iso_tx_class *tx) {
+void iso_txc_init(struct iso_tx_class *txc) {
 	int i;
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++)
-		INIT_HLIST_HEAD(&tx->rl_bucket[i]);
+		INIT_HLIST_HEAD(&txc->rl_bucket[i]);
 
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++)
-		INIT_HLIST_HEAD(&tx->state_bucket[i]);
+		INIT_HLIST_HEAD(&txc->state_bucket[i]);
 
-	INIT_LIST_HEAD(&tx->list);
-	INIT_HLIST_NODE(&tx->hash_node);
+	INIT_LIST_HEAD(&txc->list);
+	INIT_HLIST_NODE(&txc->hash_node);
 }
 
 static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
