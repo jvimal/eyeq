@@ -31,6 +31,8 @@ struct iso_rl_queue {
 	int length;
 
 	u64 bytes_enqueued;
+	u64 feedback_backlog;
+
 	u64 tokens;
 	spinlock_t spinlock;
 	struct tasklet_struct xmit_timeout;
@@ -65,6 +67,26 @@ inline void skb_xmit(struct sk_buff *skb);
 
 static inline int skb_size(struct sk_buff *skb) {
 	return skb->len;
+}
+
+#define ISO_HCN_MASK (1 << 2)
+
+static inline void skb_set_feedback(struct sk_buff *skb) {
+	struct ethhdr *eth;
+	struct iphdr *iph;
+	u16 newdscp;
+
+	skb_reset_mac_header(skb);
+	eth = eth_hdr(skb);
+	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
+		return;
+
+	__skb_pull(skb, sizeof(struct ethhdr));
+	skb_reset_network_header(skb);
+	iph = ip_hdr(skb);
+	newdscp = iph->tos | ISO_HCN_MASK;
+	ipv4_copy_dscp(newdscp, iph);
+	__skb_push(skb, sizeof(struct ethhdr));
 }
 
 /* Local Variables: */

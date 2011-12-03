@@ -11,8 +11,9 @@ void iso_rl_init(struct iso_rl *rl) {
 
 	for_each_possible_cpu(i) {
 		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
-		q->head = q->tail = 0;
+		q->head = q->tail = q->length = 0;
 		q->bytes_enqueued = 0;
+		q->feedback_backlog = 0;
 		q->tokens = 0;
 
 		spin_lock_init(&q->spinlock);
@@ -132,6 +133,12 @@ void iso_rl_dequeue(unsigned long _q) {
 		q->tokens -= size;
 		q->head = (q->head + 1) & ISO_MAX_QUEUE_LEN_PKT;
 		q->length--;
+
+		if(q->feedback_backlog) {
+			skb_set_feedback(pkt);
+			q->feedback_backlog = 0;
+		}
+
 		skb_xmit(pkt);
 
 		if(q->length == 0)
