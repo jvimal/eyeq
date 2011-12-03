@@ -11,7 +11,16 @@ struct iso_per_dest_state {
 	u32 ip_key;
 	struct iso_rl *rl;
 	struct iso_vq *vq;
-	/* Tx and Rx state */
+
+	/* Tx and Rx state = stats + control variables */
+	struct {
+		u64 rfair;
+		u64 alpha;
+
+		ktime_t last_rfair_change_time;
+		ktime_t last_rfair_decrease_time;
+		ktime_t last_feedback_time;
+	} tx;
 
 	struct hlist_node hash_node;
 };
