@@ -33,7 +33,6 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	return NF_ACCEPT;
 }
 
-void iso_txc_init(struct iso_tx_class *tx) {
 void iso_txc_init(struct iso_tx_class *txc) {
 	int i;
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++)
