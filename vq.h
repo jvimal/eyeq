@@ -54,6 +54,7 @@ void iso_vq_enqueue(struct iso_vq *, struct sk_buff *, u32);
 inline int iso_vq_active(struct iso_vq *);
 void iso_vq_tick(u64);
 void iso_vq_drain(struct iso_vq *, u64);
+inline int iso_vq_over_limits(struct iso_vq *);
 
 /* Local Variables: */
 /* indent-tabs-mode:t */

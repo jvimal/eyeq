@@ -113,6 +113,10 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	vq_total_tokens = max(vq_total_tokens, 0LL);
 }
 
+inline int iso_vq_over_limits(struct iso_vq *vq) {
+	return vq->backlog > ISO_VQ_MARK_THRESH_BYTES;
+}
+
 /* Local Variables: */
 /* indent-tabs-mode:t */
 /* End: */
