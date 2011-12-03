@@ -91,7 +91,6 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt) {
 
  done:
 	spin_unlock(&q->spinlock);
-	iso_rl_dequeue((unsigned long)q);
 	return verdict;
 }
 
