@@ -55,6 +55,9 @@ inline iso_class_t iso_txc_classify(struct sk_buff *);
 inline void iso_class_free(iso_class_t);
 inline struct iso_tx_class *iso_txc_find(iso_class_t);
 
+struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *);
+struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32);
+
 /* Local Variables: */
 /* indent-tabs-mode:t */
 /* End: */

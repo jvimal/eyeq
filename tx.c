@@ -1,6 +1,9 @@
 
 #include <linux/netfilter_bridge.h>
+#include <linux/if_ether.h>
+
 #include "tx.h"
+#include "vq.h"
 
 extern char *iso_param_dev;
 struct nf_hook_ops hook_out;
@@ -26,11 +29,116 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 			const struct net_device *out,
 			int (*okfn)(struct sk_buff *))
 {
+	struct iso_tx_class *txc;
+	struct iso_per_dest_state *state;
+	struct iso_rl *rl;
+	struct iso_rl_queue *q;
+	struct iso_vq *vq;
+	enum iso_verdict verdict;
+
 	/* out shouldn't be NULL, but let's be careful anyway */
 	if(!out || strcmp(out->name, iso_param_dev) != 0)
 		return NF_ACCEPT;
 
+	txc = iso_txc_find(iso_txc_classify(skb));
+	if(txc == NULL)
+		goto accept;
+
+	state = iso_state_get(txc, skb);
+	if(unlikely(state == NULL)) {
+		/* printk(KERN_INFO "perfiso: running out of memory!\n"); */
+		/* XXX: Temporary: could be an L2 packet... */
+		goto accept;
+	}
+
+	rl = state->rl;
+	vq = txc->vq;
+
+	/* Enqueue in RL */
+	verdict = iso_rl_enqueue(rl, skb);
+	q = per_cpu_ptr(rl->queue, smp_processor_id());
+
+	if(iso_vq_over_limits(vq))
+		q->feedback_backlog++;
+
+	iso_rl_dequeue((unsigned long) q);
+
+	/* If accepted, steal the buffer, else drop it */
+	if(verdict == ISO_VERDICT_SUCCESS)
+		return NF_STOLEN;
+
+	if(verdict == ISO_VERDICT_DROP)
+		return NF_DROP;
+
+ accept:
 	return NF_ACCEPT;
+}
+
+struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buff *skb) {
+	struct ethhdr *eth;
+	struct iphdr *iph;
+	struct iso_per_dest_state *state = NULL;
+	struct hlist_head *head;
+	struct hlist_node *node;
+
+	u32 dst, hash;
+
+	skb_reset_mac_header(skb);
+	eth = eth_hdr(skb);
+	__skb_pull(skb, sizeof(struct ethhdr));
+
+	if(unlikely(eth->h_proto != htons(ETH_P_IP))) {
+		/* TODO: l2 packet, map all to a single rate state and RL */
+		__skb_push(skb, sizeof(struct ethhdr));
+		/* Right now, we just pass it thru */
+		return NULL;
+	}
+
+	skb_reset_network_header(skb);
+	iph = ip_hdr(skb);
+	dst = ntohl(iph->daddr);
+	__skb_push(skb, sizeof(struct ethhdr));
+
+	hash = dst & (ISO_MAX_STATE_BUCKETS - 1);
+	head = &txc->state_bucket[hash];
+
+	state = NULL;
+	hlist_for_each_entry_rcu(state, node, head, hash_node) {
+		if(state->ip_key == dst)
+			break;
+	}
+
+	if(likely(state != NULL))
+		return state;
+
+	state = kmalloc(sizeof(*state), GFP_KERNEL);
+	if(likely(state != NULL)) {
+		state->ip_key = dst;
+		state->rl = iso_pick_rl(txc, dst);
+	}
+
+	return state;
+}
+
+struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
+	struct iso_rl *rl = NULL;
+	struct hlist_head *head;
+	struct hlist_node *node;
+
+	head = &txc->rl_bucket[ip & (ISO_MAX_RL_BUCKETS - 1)];
+	hlist_for_each_entry_rcu(rl, node, head, hash_node) {
+		if(rl->ip == ip)
+			return rl;
+	}
+
+	rl = kmalloc(sizeof(*rl), GFP_KERNEL);
+	if(likely(rl != NULL)) {
+		iso_rl_init(rl);
+		rl->ip = ip;
+		hlist_add_head_rcu(&rl->hash_node, head);
+	}
+
+	return rl;
 }
 
 void iso_txc_init(struct iso_tx_class *txc) {
