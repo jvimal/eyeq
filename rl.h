@@ -73,20 +73,23 @@ static inline int skb_size(struct sk_buff *skb) {
 	return skb->len;
 }
 
-#define ISO_HCN_MASK (1 << 2)
+#define ISO_ECN_REFLECT_MASK (1 << 3)
 
-static inline void skb_set_feedback(struct sk_buff *skb) {
+static inline int skb_set_feedback(struct sk_buff *skb) {
 	struct ethhdr *eth;
 	struct iphdr *iph;
-	u16 newdscp;
+	u8 newdscp;
 
 	eth = eth_hdr(skb);
 	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
-		return;
+		return 1;
 
 	iph = ip_hdr(skb);
-	newdscp = iph->tos | ISO_HCN_MASK;
+	newdscp = iph->tos | ISO_ECN_REFLECT_MASK;
 	ipv4_copy_dscp(newdscp, iph);
+	return 0;
+}
+
 }
 
 #endif /* __RL_H__ */
