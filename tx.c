@@ -253,6 +253,10 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	/* Release the class; it could be an interface */
 	iso_class_free(txc->klass);
 
+	if(txc->vq) {
+		atomic_dec(&txc->vq->refcnt);
+	}
+
 	kfree(txc);
 }
 
