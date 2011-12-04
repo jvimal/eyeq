@@ -111,7 +111,7 @@ struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buf
 	if(likely(state != NULL))
 		return state;
 
-	state = kmalloc(sizeof(*state), GFP_KERNEL);
+	state = kmalloc(sizeof(*state), GFP_ATOMIC);
 	if(likely(state != NULL)) {
 		state->ip_key = dst;
 		state->rl = iso_pick_rl(txc, dst);
