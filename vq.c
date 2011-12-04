@@ -39,7 +39,9 @@ int iso_vq_init(struct iso_vq *vq) {
 }
 
 void iso_vq_free(struct iso_vq *vq) {
+	rcu_read_lock();
 	list_del_rcu(&vq->list);
+	rcu_read_unlock();
 	free_percpu(vq->percpu_stats);
 	kfree(vq);
 }

@@ -78,6 +78,7 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	return ret;
 }
 
+/* Called with rcu lock */
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buff *skb) {
 	struct ethhdr *eth;
 	struct iphdr *iph;
@@ -123,6 +124,7 @@ struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 	struct iso_rl *rl = NULL;
 	struct hlist_head *head;
 	struct hlist_node *node;
+	rcu_read_lock();
 
 	head = &txc->rl_bucket[ip & (ISO_MAX_RL_BUCKETS - 1)];
 	hlist_for_each_entry_rcu(rl, node, head, hash_node) {
@@ -136,6 +138,7 @@ struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 		rl->ip = ip;
 		hlist_add_head_rcu(&rl->hash_node, head);
 	}
+	rcu_read_unlock();
 
 	return rl;
 }
@@ -165,12 +168,14 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 
 	iso_txc_init(txc);
 	txc->klass = klass;
-
+	rcu_read_lock();
 	head = iso_txc_find_bucket(klass);
 	hlist_add_head_rcu(&txc->hash_node, head);
+	rcu_read_unlock();
 	return txc;
 }
 
+/* Called with rcu lock */
 void iso_txc_free(struct iso_tx_class *txc) {
 	struct hlist_head *head;
 	struct hlist_node *n;
@@ -220,10 +225,12 @@ inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
 	struct iso_tx_class *txc;
 	struct hlist_node *n;
 
+	rcu_read_lock();
 	hlist_for_each_entry_rcu(txc, n, head, hash_node) {
 		if(txc->klass == klass)
 			return txc;
 	}
+	rcu_read_unlock();
 
 	return NULL;
 }
