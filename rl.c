@@ -72,9 +72,7 @@ void iso_rl_clock(struct iso_rl *rl) {
 	spin_unlock_irqrestore(&rl->spinlock, flags);
 }
 
-enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt) {
-	// enqueue to cpu's queue
-	int cpu = smp_processor_id();
+enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu) {
 	struct iso_rl_queue *q = per_cpu_ptr(rl->queue, cpu);
 	enum iso_verdict verdict;
 

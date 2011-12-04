@@ -35,11 +35,13 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	struct iso_rl_queue *q;
 	struct iso_vq *vq;
 	enum iso_verdict verdict;
+	int ret = NF_ACCEPT, cpu = smp_processor_id();
 
 	/* out shouldn't be NULL, but let's be careful anyway */
 	if(!out || strcmp(out->name, iso_param_dev) != 0)
 		return NF_ACCEPT;
 
+	rcu_read_lock();
 	txc = iso_txc_find(iso_txc_classify(skb));
 	if(txc == NULL)
 		goto accept;
@@ -55,23 +57,25 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	vq = txc->vq;
 
 	/* Enqueue in RL */
-	verdict = iso_rl_enqueue(rl, skb);
-	q = per_cpu_ptr(rl->queue, smp_processor_id());
 
+	verdict = iso_rl_enqueue(rl, skb, cpu);
+	q = per_cpu_ptr(rl->queue, cpu);
+
+	/*
 	if(iso_vq_over_limits(vq))
 		q->feedback_backlog++;
-
-	iso_rl_dequeue((unsigned long) q);
+	*/
 
 	/* If accepted, steal the buffer, else drop it */
 	if(verdict == ISO_VERDICT_SUCCESS)
-		return NF_STOLEN;
+		ret = NF_STOLEN;
+	else if(verdict == ISO_VERDICT_DROP)
+		ret = NF_DROP;
 
-	if(verdict == ISO_VERDICT_DROP)
-		return NF_DROP;
-
+	tasklet_schedule(&q->xmit_timeout);
  accept:
-	return NF_ACCEPT;
+	rcu_read_unlock();
+	return ret;
 }
 
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buff *skb) {
