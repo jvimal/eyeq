@@ -13,7 +13,7 @@ int iso_rx_init() {
 	hook_in.hook = iso_rx_bridge;
 	hook_in.hooknum= NF_BR_PRE_ROUTING;
 	hook_in.pf = PF_BRIDGE;
-	hook_in.priority = NF_BR_PRI_BRNF;
+	hook_in.priority = NF_BR_PRI_FIRST;
 
 	return nf_register_hook(&hook_in);
 }
