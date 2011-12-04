@@ -90,6 +90,16 @@ static inline int skb_set_feedback(struct sk_buff *skb) {
 	return 0;
 }
 
+static inline int skb_has_feedback(struct sk_buff *skb) {
+	struct ethhdr *eth;
+	struct iphdr *iph;
+
+	eth = eth_hdr(skb);
+	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
+		return 0;
+
+	iph = ip_hdr(skb);
+	return iph->tos & ISO_ECN_REFLECT_MASK;
 }
 
 #endif /* __RL_H__ */

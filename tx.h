@@ -5,6 +5,7 @@
 #include <linux/types.h>
 #include <linux/seq_file.h>
 #include "rl.h"
+#include "rc.h"
 
 /*
  * Classification can be based on skb->dev, src hwaddr, ip, tcp, etc.
@@ -30,15 +31,7 @@ struct iso_per_dest_state {
 	struct iso_rl *rl;
 
 	/* Tx and Rx state = stats + control variables */
-	struct {
-		u64 rfair;
-		u64 alpha;
-
-		ktime_t last_rfair_change_time;
-		ktime_t last_rfair_decrease_time;
-		ktime_t last_feedback_time;
-	} tx;
-
+	struct iso_rc_state tx_rc;
 	struct hlist_node hash_node;
 };
 
