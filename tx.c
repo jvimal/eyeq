@@ -279,6 +279,21 @@ inline u32 iso_class_hash(iso_class_t klass) {
 inline void iso_class_show(iso_class_t klass, char *buff) {
 	sprintf(buff, "%p", klass);
 }
+
+/* XXX: should this routine do "dev_put" as well?  Maybe it should, as
+ *  we will not be dereferencing iso_class_t anyway?
+ */
+
+inline iso_class_t iso_class_parse(char *devname) {
+	struct net_device *dev;
+
+	rcu_read_lock();
+	dev = dev_get_by_name_rcu(&init_net, devname);
+	rcu_read_unlock();
+
+	dev_put(dev);
+	return dev;
+}
 #elif defined ISO_TX_CLASS_ETHER_SRC
 inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
 	iso_class_t ret;
@@ -305,6 +320,12 @@ inline void iso_class_show(iso_class_t klass, char *buff) {
 			o[0], o[1], o[2], o[3], o[4], o[5]);
 #undef O
 #undef OO
+}
+
+inline iso_class_t iso_class_parse(char *hwaddr) {
+	iso_class_t ret = {.addr = {0}};
+	mac_pton(hwaddr, (u8*)&ret);
+	return ret;
 }
 #endif
 

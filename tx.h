@@ -82,6 +82,7 @@ inline void iso_class_free(iso_class_t);
 inline int iso_class_cmp(iso_class_t a, iso_class_t b);
 inline u32 iso_class_hash(iso_class_t);
 inline void iso_class_show(iso_class_t, char *);
+inline iso_class_t iso_class_parse(char*);
 inline struct iso_tx_class *iso_txc_find(iso_class_t);
 
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *);
