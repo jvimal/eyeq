@@ -1,3 +1,6 @@
+#ifndef __RL_H__
+#define __RL_H__
+
 #include <linux/version.h>
 #include <linux/skbuff.h>
 #include <linux/netfilter.h>
@@ -85,6 +88,8 @@ static inline void skb_set_feedback(struct sk_buff *skb) {
 	newdscp = iph->tos | ISO_HCN_MASK;
 	ipv4_copy_dscp(newdscp, iph);
 }
+
+#endif /* __RL_H__ */
 
 /* Local Variables: */
 /* indent-tabs-mode:t */
