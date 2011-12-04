@@ -29,6 +29,7 @@ struct iso_rl_queue {
 	int head;
 	int tail;
 	int length;
+	int first_pkt_size;
 
 	u64 bytes_enqueued;
 	u64 feedback_backlog;

@@ -12,6 +12,7 @@ void iso_rl_init(struct iso_rl *rl) {
 	for_each_possible_cpu(i) {
 		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
 		q->head = q->tail = q->length = 0;
+		q->first_pkt_size = 0;
 		q->bytes_enqueued = 0;
 		q->feedback_backlog = 0;
 		q->tokens = 0;
@@ -114,7 +115,7 @@ void iso_rl_dequeue(unsigned long _q) {
 	/* Try to borrow from the global token pool; if that fails,
 	   program the timeout for this queue */
 
-	if(unlikely(q->tokens == 0)) {
+	if(unlikely(q->tokens < q->first_pkt_size)) {
 		timeout = iso_rl_borrow_tokens(rl, q);
 		if(timeout) {
 			hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
@@ -131,8 +132,10 @@ void iso_rl_dequeue(unsigned long _q) {
 
 	pkt = q->queue[q->head];
 	sum = size = skb_size(pkt);
+	q->first_pkt_size = size;
+	timeout = 1;
 
-	while(sum < q->tokens) {
+	while(sum <= q->tokens) {
 		q->tokens -= size;
 		q->head = (q->head + 1) & ISO_MAX_QUEUE_LEN_PKT;
 		q->length--;
@@ -144,15 +147,21 @@ void iso_rl_dequeue(unsigned long _q) {
 
 		skb_xmit(pkt);
 
-		if(q->length == 0)
+		if(q->length == 0) {
+			timeout = 0;
 			break;
+		}
 
 		pkt = q->queue[q->head];
 		sum += (size = skb_size(pkt));
+		q->first_pkt_size = size;
 	}
 
 unlock:
 	spin_unlock(&q->spinlock);
+	if(timeout) {
+		hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
+	}
 }
 
 /* HARDIRQ timeout */
