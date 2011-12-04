@@ -76,17 +76,13 @@ static inline void skb_set_feedback(struct sk_buff *skb) {
 	struct iphdr *iph;
 	u16 newdscp;
 
-	skb_reset_mac_header(skb);
 	eth = eth_hdr(skb);
 	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
 		return;
 
-	__skb_pull(skb, sizeof(struct ethhdr));
-	skb_reset_network_header(skb);
 	iph = ip_hdr(skb);
 	newdscp = iph->tos | ISO_HCN_MASK;
 	ipv4_copy_dscp(newdscp, iph);
-	__skb_push(skb, sizeof(struct ethhdr));
 }
 
 /* Local Variables: */

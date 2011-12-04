@@ -87,21 +87,16 @@ struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buf
 
 	u32 dst, hash;
 
-	skb_reset_mac_header(skb);
 	eth = eth_hdr(skb);
-	__skb_pull(skb, sizeof(struct ethhdr));
 
 	if(unlikely(eth->h_proto != htons(ETH_P_IP))) {
 		/* TODO: l2 packet, map all to a single rate state and RL */
-		__skb_push(skb, sizeof(struct ethhdr));
 		/* Right now, we just pass it thru */
 		return NULL;
 	}
 
-	skb_reset_network_header(skb);
 	iph = ip_hdr(skb);
 	dst = ntohl(iph->daddr);
-	__skb_push(skb, sizeof(struct ethhdr));
 
 	hash = dst & (ISO_MAX_STATE_BUCKETS - 1);
 	head = &txc->state_bucket[hash];
