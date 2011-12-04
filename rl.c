@@ -175,7 +175,7 @@ enum hrtimer_restart iso_rl_timeout(struct hrtimer *timer) {
 }
 
 inline u64 iso_rl_singleq_burst(struct iso_rl *rl) {
-	return rl->rate * ISO_MAX_BURST_TIME_US / ISO_BURST_FACTOR;
+	return ((rl->rate * ISO_MAX_BURST_TIME_US) >> 3) / ISO_BURST_FACTOR;
 }
 
 int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
