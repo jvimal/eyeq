@@ -71,10 +71,14 @@ int iso_vq_init(struct iso_vq *vq) {
 	spin_lock_init(&vq->spinlock);
 	INIT_LIST_HEAD(&vq->list);
 	INIT_HLIST_NODE(&vq->hash_node);
+
+	atomic_set(&vq->refcnt, 0);
 	return 0;
 }
 
 void iso_vq_free(struct iso_vq *vq) {
+	if(atomic_read(&vq->refcnt) > 0)
+		return;
 	rcu_read_lock();
 	list_del_rcu(&vq->list);
 	rcu_read_unlock();
@@ -180,9 +184,11 @@ void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
 	struct iso_vq_stats *stats;
 
 	iso_class_show(vq->klass, buff);
-	seq_printf(s, "klass %s   flags %d%d%d   rate %llu   backlog %llu   weight %llu\n",
+	seq_printf(s, "klass %s   flags %d%d%d   rate %llu   backlog %llu   weight %llu"
+			   "   refcnt %d\n",
 			   buff, vq->enabled, vq->active, vq->is_static,
-			   vq->rate, vq->backlog, vq->weight);
+			   vq->rate, vq->backlog, vq->weight,
+			   atomic_read(&vq->refcnt));
 
 	for_each_possible_cpu(i) {
 		if(first) {

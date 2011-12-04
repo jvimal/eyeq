@@ -45,6 +45,9 @@ struct iso_vq {
 	iso_class_t klass;
 	struct list_head list;
 	struct hlist_node hash_node;
+
+	/* The number of tx classes referring to this VQ */
+	atomic_t refcnt;
 };
 
 extern struct list_head vq_list;
