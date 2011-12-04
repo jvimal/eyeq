@@ -45,13 +45,10 @@ inline int iso_rl_should_refill(struct iso_rl *rl) {
 	return 0;
 }
 
-inline u64 iso_rl_cap_tokens(u64 tokens) {
-	return min(tokens, (u64)ISO_MIN_BURST_BYTES);
-}
-
 /* This function could be called from HARDIRQ context */
 void iso_rl_clock(struct iso_rl *rl) {
 	unsigned long flags;
+	u64 cap;
 	u32 us;
 	ktime_t now;
 
@@ -62,7 +59,12 @@ void iso_rl_clock(struct iso_rl *rl) {
 		return;
 
 	us = ktime_us_delta(now, rl->last_update_time);
-	rl->total_tokens += iso_rl_cap_tokens((rl->rate * us) >> 3);
+	rl->total_tokens += (rl->rate * us) >> 3;
+
+	/* This is needed if we have TSO.  MIN_BURST_BYTES will be ~64K */
+	cap = max((rl->rate * ISO_MAX_BURST_TIME_US) >> 3, (u64)ISO_MIN_BURST_BYTES);
+	rl->total_tokens = min(cap, rl->total_tokens);
+
 	rl->last_update_time = now;
 
 	spin_unlock_irqrestore(&rl->spinlock, flags);
@@ -168,11 +170,17 @@ inline u64 iso_rl_singleq_burst(struct iso_rl *rl) {
 int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 	unsigned long flags;
 	int timeout = 1;
-	spin_lock_irqsave(&rl->spinlock, flags);
+	u64 borrow, cap;
 
-	if(rl->total_tokens > iso_rl_singleq_burst(rl)) {
-		rl->total_tokens -= iso_rl_singleq_burst(rl);
-		q->tokens += iso_rl_singleq_burst(rl);
+	spin_lock_irqsave(&rl->spinlock, flags);
+	borrow = max(iso_rl_singleq_burst(rl), (u64)q->first_pkt_size);
+
+	if(rl->total_tokens > borrow) {
+		rl->total_tokens -= borrow;
+		q->tokens += borrow;
+		cap = max((rl->rate * ISO_MAX_BURST_TIME_US) >> 3, (u64)ISO_MIN_BURST_BYTES);
+		q->tokens = min(cap, q->tokens);
+
 		timeout = 0;
 	}
 
