@@ -35,6 +35,8 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 	iso_class_t klass;
 	struct iso_per_dest_state *state;
 	struct iso_vq *vq;
+	struct iso_rc_state *rc;
+	int changed;
 
 	/* out will be NULL if this is PRE_ROUTING */
 	if(in != iso_netdev)
@@ -54,7 +56,16 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 	if(txc == NULL)
 		goto accept;
 
-	state = iso_state_get(txc, skb);
+	state = iso_state_get(txc, skb, 1);
+	if(unlikely(state == NULL))
+		goto accept;
+
+	rc = &state->tx_rc;
+	changed = iso_rc_rx(rc, skb);
+
+	/* XXX: for now */
+	if(changed)
+		state->rl->rate = rc->rfair;
 
  accept:
 	rcu_read_unlock();
