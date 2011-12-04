@@ -97,11 +97,12 @@ inline void iso_rc_do_alpha(struct iso_rc_state *rc) {
 	rc->num_marked = 0;
 }
 
-void iso_rc_show(struct iso_rc *rc, struct seq_file *s) {
-	seq_printf(s, "rfair %llu   alpha %llu   num_marked %llu   "
-			   "last_change %llu   last_decrease %llu   last_feedback %llu\n",
+void iso_rc_show(struct iso_rc_state *rc, struct seq_file *s) {
+	seq_printf(s, "\trfair %llu   alpha %llu   num_marked %llu   "
+			   "last_change %llx   last_decrease %llx   last_feedback %llx\n",
 			   rc->rfair, rc->alpha, rc->num_marked,
-			   rc->last_rfair_change_time, rc->last_rfair_decrease_time, rc->last_feedback_time);
+			   *(u64*)&rc->last_rfair_change_time, *(u64*)&rc->last_rfair_decrease_time,
+			   *(u64*)&rc->last_feedback_time);
 }
 
 /* Local Variables: */

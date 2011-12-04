@@ -46,6 +46,8 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	struct hlist_node *node;
 	struct hlist_head *head;
 	struct iso_rl *rl;
+	struct iso_per_dest_state *state;
+
 	char buff[128];
 	char vqc[128];
 
@@ -57,6 +59,16 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	}
 
 	seq_printf(s, "txc klass %s   assoc vq %s\n", buff, vqc);
+
+	seq_printf(s, "per dest state:\n");
+	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
+		head = &txc->state_bucket[i];
+		hlist_for_each_entry_rcu(state, node, head, hash_node) {
+			seq_printf(s, "ip %x   rl %p\n", state->ip_key, state->rl);
+			iso_rc_show(&state->tx_rc, s);
+		}
+	}
+
 	seq_printf(s, "rate limiters:\n");
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {
 		head = &txc->rl_bucket[i];

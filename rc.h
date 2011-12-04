@@ -30,6 +30,7 @@ inline void iso_rc_do_ai(struct iso_rc_state *);
 inline void iso_rc_do_md(struct iso_rc_state *);
 inline void iso_rc_do_alpha(struct iso_rc_state *);
 
+void iso_rc_show(struct iso_rc_state *, struct seq_file *);
 #endif /* __RC_H__ */
 
 /* Local Variables: */

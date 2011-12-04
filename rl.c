@@ -44,8 +44,8 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 	struct iso_rl_queue *q;
 	int i, first = 1;
 
-	seq_printf(s, "ip %x   rate %llu   total_tokens %llu   last %llx\n",
-			   rl->ip, rl->rate, rl->total_tokens, *(u64 *)&rl->last_update_time);
+	seq_printf(s, "ip %x   rate %llu   total_tokens %llu   last %llx   %p\n",
+			   rl->ip, rl->rate, rl->total_tokens, *(u64 *)&rl->last_update_time, rl);
 
 	for_each_possible_cpu(i) {
 		if(first) {
