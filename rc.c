@@ -4,6 +4,7 @@
 inline void iso_rc_init(struct iso_rc_state *rc) {
 	rc->rfair = ISO_RFAIR_INITIAL;
 	rc->alpha = 0;
+	rc->num_marked = 0;
 
 	rc->last_rfair_change_time = ktime_get();
 	rc->last_rfair_decrease_time = ktime_get();
@@ -46,6 +47,8 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 			spin_unlock(&rc->spinlock);
 			goto changed;
 		}
+
+		goto end;
 	} else {
 		dt = ktime_us_delta(now, rc->last_rfair_change_time);
 		if(dt > ISO_RFAIR_INCREASE_INTERVAL_US) {
@@ -53,7 +56,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 				goto end;
 
 			dt = ktime_us_delta(now, rc->last_rfair_change_time);
-			if(unlikely(dt < ISO_RFAIR_DECREASE_INTERVAL_US))
+			if(unlikely(dt < ISO_RFAIR_INCREASE_INTERVAL_US))
 				goto done_increase;
 
 			iso_rc_do_ai(rc);
@@ -61,6 +64,8 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 			spin_unlock(&rc->spinlock);
 			goto changed;
 		}
+
+		goto end;
 	}
 
  changed:
