@@ -5,6 +5,7 @@
 #include <linux/seq_file.h>
 #include "stats.h"
 #include "tx.h"
+#include "vq.h"
 
 static void *iso_stats_proc_seq_start(struct seq_file *s, loff_t *pos)
 {
@@ -36,6 +37,8 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 	struct hlist_head *head;
 	struct hlist_node *node;
 	struct iso_tx_class *txc;
+	struct iso_vq *vq;
+
 	int i;
 	rcu_read_lock();
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
@@ -43,6 +46,13 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 		hlist_for_each_entry_rcu(txc, node, head, hash_node) {
 			iso_txc_show(txc, s);
 		}
+	}
+
+	seq_printf(s, "\nvqs   total_tokens %lld   last_update %llx\n",
+			   vq_total_tokens, *(u64 *)&vq_last_update_time);
+
+	for_each_vq(vq) {
+		iso_vq_show(vq, s);
 	}
 	rcu_read_unlock();
 	return 0;
