@@ -88,6 +88,8 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt) {
 	q->queue[q->tail++] = pkt;
 	q->tail = q->tail & ISO_MAX_QUEUE_LEN_PKT;
 	q->length++;
+	q->bytes_enqueued += skb_size(pkt);
+
 	verdict = ISO_VERDICT_SUCCESS;
 	goto done;
 
@@ -139,6 +141,7 @@ void iso_rl_dequeue(unsigned long _q) {
 		q->tokens -= size;
 		q->head = (q->head + 1) & ISO_MAX_QUEUE_LEN_PKT;
 		q->length--;
+		q->bytes_enqueued -= size;
 
 		if(q->feedback_backlog) {
 			skb_set_feedback(pkt);
