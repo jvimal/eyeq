@@ -120,6 +120,10 @@ struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buf
 	return state;
 }
 
+void iso_state_free(struct iso_per_dest_state *state) {
+	kfree(state);
+}
+
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 	struct iso_rl *rl = NULL;
 	struct hlist_head *head;
@@ -200,7 +204,7 @@ void iso_txc_free(struct iso_tx_class *txc) {
 		head = &txc->state_bucket[i];
 		hlist_for_each_entry_rcu(state, n, head, hash_node) {
 			hlist_del_init_rcu(&state->hash_node);
-			// iso_state_free(state);
+			iso_state_free(state);
 		}
 	}
 
