@@ -22,6 +22,7 @@ int iso_rx_init() {
 
 void iso_rx_exit() {
 	nf_unregister_hook(&hook_in);
+	iso_vqs_exit();
 }
 
 /* There could be other ways of receiving packets */
