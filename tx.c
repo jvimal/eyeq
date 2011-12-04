@@ -5,6 +5,7 @@
 #include "vq.h"
 
 extern char *iso_param_dev;
+extern struct net_device *iso_netdev;
 struct nf_hook_ops hook_out;
 struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
 
@@ -87,7 +88,7 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	int ret = NF_ACCEPT, cpu = smp_processor_id();
 
 	/* out shouldn't be NULL, but let's be careful anyway */
-	if(!out || strcmp(out->name, iso_param_dev) != 0)
+	if(out != iso_netdev)
 		return NF_ACCEPT;
 
 	rcu_read_lock();

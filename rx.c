@@ -5,6 +5,7 @@
 #include "vq.h"
 
 extern char *iso_param_dev;
+extern struct net_device *iso_netdev;
 struct nf_hook_ops hook_in;
 
 int iso_rx_init() {
@@ -36,7 +37,7 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 	struct iso_vq *vq;
 
 	/* out will be NULL if this is PRE_ROUTING */
-	if(!in || strcmp(in->name, iso_param_dev) != 0)
+	if(in != iso_netdev)
 		return NF_ACCEPT;
 
 	rcu_read_lock();
