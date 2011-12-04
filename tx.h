@@ -1,7 +1,6 @@
 
 #include <linux/rculist.h>
 #include <linux/types.h>
-
 #include "rl.h"
 
 typedef struct net_device *iso_class_t;
@@ -40,6 +39,7 @@ extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
 
 int iso_tx_init(void);
 void iso_tx_exit(void);
+
 unsigned int iso_tx_bridge(unsigned int hooknum,
 						   struct sk_buff *skb,
 						   const struct net_device *in,

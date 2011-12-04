@@ -48,7 +48,6 @@ struct iso_rl {
 	ktime_t last_update_time;
 	spinlock_t spinlock;
 
-	// DEFINE_PER_CPU(struct iso_rl_queue, queue);
 	struct iso_rl_queue __percpu *queue;
 	struct hlist_node hash_node;
 };
@@ -56,7 +55,6 @@ struct iso_rl {
 void iso_rl_init(struct iso_rl *);
 void iso_rl_free(struct iso_rl *);
 inline int iso_rl_should_refill(struct iso_rl *);
-inline u64 iso_rl_cap_tokens(u64);
 void iso_rl_clock(struct iso_rl *);
 void iso_rl_dequeue(unsigned long);
 enum iso_verdict iso_rl_enqueue(struct iso_rl *, struct sk_buff *, int cpu);

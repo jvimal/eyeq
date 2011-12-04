@@ -1,7 +1,6 @@
 
 #include <linux/netfilter_bridge.h>
 #include <linux/if_ether.h>
-
 #include "tx.h"
 #include "vq.h"
 
@@ -11,6 +10,7 @@ struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
 
 int iso_tx_init() {
 	printk(KERN_INFO "perfiso: Init TX path\n");
+
 	hook_out.hook = iso_tx_bridge;
 	hook_out.hooknum= NF_BR_POST_ROUTING;
 	hook_out.pf = PF_BRIDGE;
