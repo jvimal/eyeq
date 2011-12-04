@@ -123,10 +123,10 @@ void iso_params_exit() {
 /*
  * Create a new TX context with a specific filter
  * If compiled with CLASS_DEV
- * echo -n eth0 > /sys/module/cong_mod/parameters/create_txc
+ * echo -n eth0 > /sys/module/perfiso/parameters/create_txc
  *
  * If compiled with CLASS_ETHER_SRC
- * echo -n 00:00:00:00:01:01 > /sys/module/cong_mod/parameters/create_txc
+ * echo -n 00:00:00:00:01:01 > /sys/module/perfiso/parameters/create_txc
  */
 static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	char buff[128];
@@ -158,10 +158,10 @@ module_param_call(create_txc, iso_sys_create_txc, iso_sys_noget, NULL, S_IWUSR);
 /*
  * Create a new RX context (vq) with a specific filter
  * If compiled with CLASS_DEV
- * echo -n eth0 > /sys/module/cong_mod/parameters/create_vq
+ * echo -n eth0 > /sys/module/perfiso/parameters/create_vq
  *
  * If compiled with CLASS_ETHER_SRC
- * echo -n 00:00:00:00:01:01 > /sys/module/cong_mod/parameters/create_vq
+ * echo -n 00:00:00:00:01:01 > /sys/module/perfiso/parameters/create_vq
  */
 static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	char buff[128];
