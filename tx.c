@@ -106,14 +106,13 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	vq = txc->vq;
 
 	/* Enqueue in RL */
-
 	verdict = iso_rl_enqueue(rl, skb, cpu);
 	q = per_cpu_ptr(rl->queue, cpu);
 
-	/*
-	if(iso_vq_over_limits(vq))
-		q->feedback_backlog++;
-	*/
+	if(likely(vq)) {
+		if(iso_vq_over_limits(vq))
+			q->feedback_backlog++;
+	}
 
 	/* If accepted, steal the buffer, else drop it */
 	if(verdict == ISO_VERDICT_SUCCESS)
@@ -206,6 +205,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 
 	INIT_LIST_HEAD(&txc->list);
 	INIT_HLIST_NODE(&txc->hash_node);
+	txc->vq = NULL;
 }
 
 static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
