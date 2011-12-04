@@ -46,9 +46,16 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	struct hlist_head *head;
 	struct iso_rl *rl;
 	char buff[128];
+	char vqc[128];
 
 	iso_class_show(txc->klass, buff);
-	seq_printf(s, "txc klass %s\n", buff);
+	if(txc->vq) {
+		iso_class_show(txc->vq->klass, vqc);
+	} else {
+		sprintf(vqc, "(none)");
+	}
+
+	seq_printf(s, "txc klass %s   assoc vq %s\n", buff, vqc);
 	seq_printf(s, "rate limiters:\n");
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {
 		head = &txc->rl_bucket[i];
