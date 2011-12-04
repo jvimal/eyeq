@@ -163,7 +163,10 @@ struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buf
 	state = kmalloc(sizeof(*state), GFP_ATOMIC);
 	if(likely(state != NULL)) {
 		state->ip_key = dst;
-		state->rl = iso_pick_rl(txc, dst);
+		state->rl = iso_pick_rl(txc, ip);
+		iso_rc_init(&state->tx_rc);
+		INIT_HLIST_NODE(&state->hash_node);
+		hlist_add_head_rcu(&state->hash_node, head);
 	}
 
 	return state;
