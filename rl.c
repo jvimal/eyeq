@@ -58,6 +58,7 @@ void iso_rl_clock(struct iso_rl *rl) {
 	if(!spin_trylock_irqsave(&rl->spinlock, flags))
 		return;
 
+	now = ktime_get();
 	us = ktime_us_delta(now, rl->last_update_time);
 	rl->total_tokens += (rl->rate * us) >> 3;
 
