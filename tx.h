@@ -78,7 +78,7 @@ inline void iso_class_show(iso_class_t, char *);
 inline iso_class_t iso_class_parse(char*);
 inline struct iso_tx_class *iso_txc_find(iso_class_t);
 
-struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *);
+struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *, int rx);
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32);
 void iso_state_free(struct iso_per_dest_state *);
 

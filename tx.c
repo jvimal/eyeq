@@ -96,7 +96,7 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	if(txc == NULL)
 		goto accept;
 
-	state = iso_state_get(txc, skb);
+	state = iso_state_get(txc, skb, 0);
 	if(unlikely(state == NULL)) {
 		/* printk(KERN_INFO "perfiso: running out of memory!\n"); */
 		/* XXX: Temporary: could be an L2 packet... */
@@ -128,14 +128,18 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 }
 
 /* Called with rcu lock */
-struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buff *skb) {
+struct iso_per_dest_state
+*iso_state_get(struct iso_tx_class *txc,
+			   struct sk_buff *skb,
+			   int rx)
+{
 	struct ethhdr *eth;
 	struct iphdr *iph;
 	struct iso_per_dest_state *state = NULL;
 	struct hlist_head *head;
 	struct hlist_node *node;
 
-	u32 dst, hash;
+	u32 ip, hash;
 
 	eth = eth_hdr(skb);
 
@@ -146,14 +150,16 @@ struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buf
 	}
 
 	iph = ip_hdr(skb);
-	dst = ntohl(iph->daddr);
 
-	hash = dst & (ISO_MAX_STATE_BUCKETS - 1);
+	ip = ntohl(iph->daddr);
+	if(rx) ip = ntohl(iph->saddr);
+
+	hash = ip & (ISO_MAX_STATE_BUCKETS - 1);
 	head = &txc->state_bucket[hash];
 
 	state = NULL;
 	hlist_for_each_entry_rcu(state, node, head, hash_node) {
-		if(state->ip_key == dst)
+		if(state->ip_key == ip)
 			break;
 	}
 
@@ -162,7 +168,7 @@ struct iso_per_dest_state *iso_state_get(struct iso_tx_class *txc, struct sk_buf
 
 	state = kmalloc(sizeof(*state), GFP_ATOMIC);
 	if(likely(state != NULL)) {
-		state->ip_key = dst;
+		state->ip_key = ip;
 		state->rl = iso_pick_rl(txc, ip);
 		iso_rc_init(&state->tx_rc);
 		INIT_HLIST_NODE(&state->hash_node);
