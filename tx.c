@@ -45,8 +45,10 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	struct hlist_node *node;
 	struct hlist_head *head;
 	struct iso_rl *rl;
+	char buff[128];
 
-	seq_printf(s, "txc klass=%llx\n", (u64)txc->klass);
+	iso_class_show(txc->klass, buff);
+	seq_printf(s, "txc klass %s\n", buff);
 	seq_printf(s, "rate limiters:\n");
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {
 		head = &txc->rl_bucket[i];
@@ -200,7 +202,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 }
 
 static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
-	return &iso_tx_bucket[(((unsigned long)klass) >> 12) & (ISO_MAX_TX_BUCKETS - 1)];
+	return &iso_tx_bucket[iso_class_hash(klass) & (ISO_MAX_TX_BUCKETS - 1)];
 }
 
 struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
@@ -256,6 +258,8 @@ void iso_txc_free(struct iso_tx_class *txc) {
 
 /* First attempt: out device classification.  Its address is usually
    aligned, so shift out the zeroes */
+
+#if defined ISO_TX_CLASS_DEV
 inline iso_class_t iso_txc_classify(struct sk_buff *pkt) {
 	return pkt->dev;
 }
@@ -264,6 +268,46 @@ inline void iso_class_free(iso_class_t klass) {
 	dev_put((struct net_device *)klass);
 }
 
+inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
+	return (u64)a - (u64)b;
+}
+
+inline u32 iso_class_hash(iso_class_t klass) {
+	return (u32) ((u64)klass >> 12);
+}
+
+inline void iso_class_show(iso_class_t klass, char *buff) {
+	sprintf(buff, "%p", klass);
+}
+#elif defined ISO_TX_CLASS_ETHER_SRC
+inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
+	iso_class_t ret;
+	memcpy((unsigned char *)&ret, eth_hdr(skb)->h_source, ETH_ALEN);
+	return ret;
+}
+
+inline void iso_class_free(iso_class_t klass) {}
+
+inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
+	return memcmp(&a, &b, sizeof(a));
+}
+
+inline u32 iso_class_hash(iso_class_t klass) {
+	return jhash((void *)&klass, sizeof(iso_class_t), 0);
+}
+
+/* Just lazy, looks weird */
+inline void iso_class_show(iso_class_t klass, char *buff) {
+#define O "%02x:"
+#define OO "%02x"
+	u8 *o = &klass.addr[0];
+	sprintf(buff, O O O O O OO,
+			o[0], o[1], o[2], o[3], o[4], o[5]);
+#undef O
+#undef OO
+}
+#endif
+
 inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
 	struct hlist_head *head = iso_txc_find_bucket(klass);
 	struct iso_tx_class *txc;
@@ -271,13 +315,81 @@ inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
 
 	rcu_read_lock();
 	hlist_for_each_entry_rcu(txc, n, head, hash_node) {
-		if(txc->klass == klass)
+		if(iso_class_cmp(txc->klass, klass) == 0)
 			return txc;
 	}
 	rcu_read_unlock();
 
 	return NULL;
 }
+
+#if defined ISO_TX_CLASS_DEV
+int iso_txc_dev_install(char *name) {
+	struct iso_tx_class *txc;
+	struct net_device *dev;
+	int ret = 0;
+
+	rcu_read_lock();
+	dev = dev_get_by_name_rcu(&init_net, name);
+
+	if(dev == NULL) {
+		printk(KERN_INFO "perfiso: dev %s not found!\n", name);
+		ret = -1;
+		goto err;
+	}
+
+	/* Check if we have already created */
+	txc = iso_txc_find(dev);
+	if(txc != NULL) {
+		dev_put(dev);
+		ret = -1;
+		goto err;
+	}
+
+	txc = iso_txc_alloc(dev);
+
+	if(txc == NULL) {
+		dev_put(dev);
+		printk(KERN_INFO "perfiso: Could not allocate tx context\n");
+		ret = -1;
+		goto err;
+	}
+
+ err:
+	rcu_read_unlock();
+	return ret;
+}
+#elif defined ISO_TX_CLASS_ETHER_SRC
+int iso_txc_ether_src_install(char *hwaddr) {
+	iso_class_t ether_src;
+	int ret = 0;
+	struct iso_tx_class *txc;
+
+	ret = -!mac_pton(hwaddr, (u8*)&ether_src);
+
+	if(ret) {
+		printk(KERN_INFO "perfiso: Cannot parse ether address from %s\n", hwaddr);
+		goto end;
+	}
+
+	/* Check if we have already created */
+	txc = iso_txc_find(ether_src);
+	if(txc != NULL) {
+		ret = -1;
+		goto end;
+	}
+
+	txc = iso_txc_alloc(ether_src);
+
+	if(txc == NULL) {
+		ret = -1;
+		goto end;
+	}
+
+ end:
+	return ret;
+}
+#endif
 
 /* Local Variables: */
 /* indent-tabs-mode:t */

@@ -4,7 +4,23 @@
 #include <linux/seq_file.h>
 #include "rl.h"
 
+/*
+ * Classification can be based on skb->dev, src hwaddr, ip, tcp, etc.
+ * It is your job to ensure that exactly ONE of the #defines are
+ * defined.
+ */
+#define ISO_TX_CLASS_ETHER_SRC
+// #define ISO_TX_CLASS_DEV
+
+struct seq_file;
+
+#if defined ISO_TX_CLASS_DEV
 typedef struct net_device *iso_class_t;
+#elif defined ISO_TX_CLASS_ETHER_SRC
+typedef struct {
+	u8 addr[ETH_ALEN];
+}iso_class_t;
+#endif
 
 /* Per-dest state */
 struct iso_per_dest_state {
@@ -53,8 +69,17 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t);
 void iso_txc_free(struct iso_tx_class *);
 void iso_txc_show(struct iso_tx_class *, struct seq_file *);
 
+#if defined ISO_TX_CLASS_DEV
+int iso_txc_dev_install(char *);
+#elif defined ISO_TX_CLASS_ETHER_SRC
+int iso_txc_ether_src_install(char *hwaddr);
+#endif
+
 inline iso_class_t iso_txc_classify(struct sk_buff *);
 inline void iso_class_free(iso_class_t);
+inline int iso_class_cmp(iso_class_t a, iso_class_t b);
+inline u32 iso_class_hash(iso_class_t);
+inline void iso_class_show(iso_class_t, char *);
 inline struct iso_tx_class *iso_txc_find(iso_class_t);
 
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *);
