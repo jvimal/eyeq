@@ -58,6 +58,7 @@ extern int ISO_VQ_UPDATE_INTERVAL_US;
 #define ISO_MAX_TX_BUCKETS (32)
 #define ISO_MAX_RL_BUCKETS (128)
 #define ISO_MAX_STATE_BUCKETS (256)
+#define ISO_MAX_VQ_BUCKETS (32)
 
 struct iso_param {
 	char name[64];
