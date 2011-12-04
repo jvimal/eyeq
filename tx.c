@@ -20,7 +20,24 @@ int iso_tx_init() {
 }
 
 void iso_tx_exit() {
+	int i;
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct iso_tx_class *txc;
+
 	nf_unregister_hook(&hook_out);
+
+	rcu_read_lock();
+
+	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
+		head = &iso_tx_bucket[i];
+		hlist_for_each_entry_rcu(txc, node, head, hash_node) {
+			iso_txc_free(txc);
+		}
+	}
+
+	rcu_read_unlock();
+}
 }
 
 unsigned int iso_tx_bridge(unsigned int hooknum,
