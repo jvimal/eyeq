@@ -38,6 +38,29 @@ void iso_tx_exit() {
 
 	rcu_read_unlock();
 }
+
+/* Called with rcu lock */
+void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
+	int i, nth;
+	struct hlist_node *node;
+	struct hlist_head *head;
+	struct iso_rl *rl;
+
+	seq_printf(s, "txc klass=%llx\n", (u64)txc->klass);
+	seq_printf(s, "rate limiters:\n");
+	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {
+		head = &txc->rl_bucket[i];
+		nth = 0;
+
+		hlist_for_each_entry_rcu(rl, node, head, hash_node) {
+			if(nth == 0) {
+				seq_printf(s, "%d ", i);
+			}
+			iso_rl_show(rl, s);
+			nth++;
+		}
+	}
+	seq_printf(s, "\n");
 }
 
 unsigned int iso_tx_bridge(unsigned int hooknum,

@@ -3,6 +3,7 @@
 #include "vq.h"
 #include "rx.h"
 #include "tx.h"
+#include "stats.h"
 
 MODULE_AUTHOR("Vimal <j.vimal@gmail.com>");
 MODULE_DESCRIPTION("Perf Isolation");
@@ -36,12 +37,16 @@ static int iso_init() {
 	if(iso_tx_init())
 		goto err;
 
+	if(iso_stats_init())
+		goto err;
+
 	return 0;
  err:
 	return -1;
 }
 
 static void iso_exit() {
+	iso_stats_exit();
 	iso_tx_exit();
 	iso_rx_exit();
 	iso_params_exit();

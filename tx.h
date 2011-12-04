@@ -1,6 +1,7 @@
 
 #include <linux/rculist.h>
 #include <linux/types.h>
+#include <linux/seq_file.h>
 #include "rl.h"
 
 typedef struct net_device *iso_class_t;
@@ -50,6 +51,7 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 void iso_txc_init(struct iso_tx_class *);
 struct iso_tx_class *iso_txc_alloc(iso_class_t);
 void iso_txc_free(struct iso_tx_class *);
+void iso_txc_show(struct iso_tx_class *, struct seq_file *);
 
 inline iso_class_t iso_txc_classify(struct sk_buff *);
 inline void iso_class_free(iso_class_t);

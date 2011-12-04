@@ -54,6 +54,7 @@ struct iso_rl {
 
 void iso_rl_init(struct iso_rl *);
 void iso_rl_free(struct iso_rl *);
+void iso_rl_show(struct iso_rl *, struct seq_file *);
 inline int iso_rl_should_refill(struct iso_rl *);
 void iso_rl_clock(struct iso_rl *);
 enum iso_verdict iso_rl_enqueue(struct iso_rl *, struct sk_buff *, int cpu);

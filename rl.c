@@ -39,6 +39,30 @@ void iso_rl_free(struct iso_rl *rl) {
 	kfree(rl);
 }
 
+/* Called with rcu lock */
+void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
+	struct iso_rl_queue *q;
+	int i, first = 1;
+
+	seq_printf(s, "ip %x rate %llu total_tokens %llu last %llx\n",
+			   rl->ip, rl->rate, rl->total_tokens, *(u64 *)&rl->last_update_time);
+
+	for_each_possible_cpu(i) {
+		if(first) {
+			seq_printf(s, "\tcpu   head   tail   len"
+					   "   first_len   queued   fbacklog   tokens\n");
+			first = 0;
+		}
+		q = per_cpu_ptr(rl->queue, i);
+
+		if(q->tokens > 0 || q->length > 0) {
+			seq_printf(s, "\t%3d   %4d   %4d   %3d   %3d   %10llu   %6llu   %10llu\n",
+					   i, q->head, q->tail, q->length, q->first_pkt_size,
+					   q->bytes_enqueued, q->feedback_backlog, q->tokens);
+		}
+	}
+}
+
 inline int iso_rl_should_refill(struct iso_rl *rl) {
 	ktime_t now = ktime_get();
 	if(ktime_us_delta(now, rl->last_update_time) > ISO_RL_UPDATE_INTERVAL_US)
