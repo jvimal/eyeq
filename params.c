@@ -6,6 +6,7 @@
 #include "params.h"
 #include "tx.h"
 #include "rx.h"
+#include "vq.h"
 
 // params
 int ISO_FALPHA = 2;
@@ -185,6 +186,57 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 }
 
 module_param_call(create_vq, iso_sys_create_vq, iso_sys_noget, NULL, S_IWUSR);
+
+/*
+ * Associate the TX path with a VQ.
+ * echo -n associate txc 00:00:00:00:01:01 vq 00:00:00:00:01:01
+ * > /sys/module/perfiso/parameters/assoc_txc_vq
+ */
+static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
+	char _txc[128], _vqc[128];
+	iso_class_t txclass, vqclass;
+	struct iso_tx_class *txc;
+	struct iso_vq *vq;
+
+	int n, ret = 0;
+
+	n = sscanf(val, "associate txc %s vq %s", _txc, _vqc);
+	if(n != 2) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	txclass = iso_class_parse(_txc);
+	vqclass = iso_class_parse(_vqc);
+
+	txc = iso_txc_find(txclass);
+	if(txc == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	vq = iso_vq_find(vqclass);
+	if(vq == NULL) {
+		printk(KERN_INFO "perfiso: Could not find vq %s\n", _vqc);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* XXX: locks?  synchronisation? */
+	if(txc->vq) {
+		atomic_dec(&txc->vq->refcnt);
+	}
+
+	txc->vq = vq;
+	atomic_inc(&vq->refcnt);
+
+	printk(KERN_INFO "perfiso: Associated txc %s with vq %s\n",
+		   _txc, _vqc);
+ out:
+	return ret;
+}
+
+module_param_call(assoc_txc_vq, iso_sys_assoc_txc_vq, iso_sys_noget, NULL, S_IWUSR);
 
 /* Local Variables: */
 /* indent-tabs-mode:t */
