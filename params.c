@@ -145,7 +145,7 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	if(ret)
 		return -EINVAL;
 
-	printk(KERN_INFO "perfiso: created tx context for dev %s\n", buff);
+	printk(KERN_INFO "perfiso: created tx context for class %s\n", buff);
 	return 0;
 }
 
@@ -180,7 +180,7 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	if(ret)
 		return -EINVAL;
 
-	printk(KERN_INFO "perfiso: created vq for dev %s\n", buff);
+	printk(KERN_INFO "perfiso: created vq for class %s\n", buff);
 	return 0;
 }
 
