@@ -206,7 +206,7 @@ struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 			return rl;
 	}
 
-	rl = kmalloc(sizeof(*rl), GFP_KERNEL);
+	rl = kmalloc(sizeof(*rl), GFP_ATOMIC);
 	if(likely(rl != NULL)) {
 		iso_rl_init(rl);
 		rl->ip = ip;
