@@ -78,7 +78,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 }
 
 inline void iso_rc_do_ai(struct iso_rc_state *rc) {
-	rc->rfair = min((u64)ISO_VQ_DRAIN_RATE_MBPS, rc->rfair + ISO_RFAIR_INCREMENT);
+	rc->rfair = min((u64)ISO_MAX_TX_RATE, rc->rfair + ISO_RFAIR_INCREMENT);
 }
 
 inline void iso_rc_do_md(struct iso_rc_state *rc) {
