@@ -59,6 +59,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 			if(unlikely(dt < ISO_RFAIR_INCREASE_INTERVAL_US))
 				goto done_increase;
 
+			iso_rc_do_alpha(rc);
 			iso_rc_do_ai(rc);
 		done_increase:
 			spin_unlock(&rc->spinlock);
