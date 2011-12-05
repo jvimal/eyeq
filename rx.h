@@ -17,6 +17,8 @@ int iso_vq_dev_install(char *);
 int iso_vq_ether_src_install(char *);
 #endif
 
+inline int iso_generate_feedback(int bit, struct sk_buff *pkt);
+inline int iso_is_generated_feedback(struct sk_buff *);
 /* Local Variables: */
 /* indent-tabs-mode:t */
 /* End: */

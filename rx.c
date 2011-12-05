@@ -36,12 +36,13 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 	iso_class_t klass;
 	struct iso_per_dest_state *state;
 	struct iso_vq *vq;
+	struct iso_vq_stats *stats;
 	struct iso_rc_state *rc;
-	int changed;
+	int changed, ret = NF_ACCEPT;
 
 	/* out will be NULL if this is PRE_ROUTING */
 	if(in != iso_netdev)
-		return NF_ACCEPT;
+		return ret;
 
 	rcu_read_lock();
 
@@ -68,9 +69,23 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 	if(changed)
 		state->rl->rate = rc->rfair;
 
+	if(unlikely(iso_is_generated_feedback(skb)))
+		ret = NF_DROP;
+
+	stats = per_cpu_ptr(vq->percpu_stats, smp_processor_id());
+	if(IsoAutoGenerateFeedback) {
+		ktime_t now = ktime_get();
+		u64 dt = ktime_us_delta(ktime_get(), stats->last_feedback_gen_time);
+
+		if(dt > ISO_FEEDBACK_INTERVAL_US) {
+			iso_generate_feedback(iso_vq_over_limits(vq), skb);
+			stats->last_feedback_gen_time = now;
+		}
+	}
+
  accept:
 	rcu_read_unlock();
-	return NF_ACCEPT;
+	return ret;
 }
 
 inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
@@ -152,6 +167,72 @@ int iso_vq_ether_src_install(char *hwaddr) {
 	return ret;
 }
 #endif
+
+/* Create a feebdack packet and prepare for transmission.  Returns 1 if successful. */
+inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
+	struct sk_buff *skb;
+	struct ethhdr *eth_to, *eth_from;
+	struct iphdr *iph_to, *iph_from;
+
+	eth_from = eth_hdr(pkt);
+	if(unlikely(eth_from->h_proto != htons(ETH_P_IP)))
+		return 0;
+
+	/* XXX: netdev_alloc_skb's meant to allocate packets for receiving.
+	 * Is it okay to use for transmitting?
+	 */
+	skb = netdev_alloc_skb(iso_netdev, ISO_FEEDBACK_PACKET_SIZE);
+	if(likely(skb)) {
+		skb->len = ISO_FEEDBACK_PACKET_SIZE;
+		skb->protocol = htons(ETH_P_IP);
+		skb->pkt_type = PACKET_OUTGOING;
+
+		skb_reset_mac_header(skb);
+		skb_set_tail_pointer(skb, ISO_FEEDBACK_PACKET_SIZE);
+		eth_to = eth_hdr(skb);
+
+		memcpy(eth_to->h_source, eth_from->h_dest, ETH_ALEN);
+		memcpy(eth_to->h_dest, eth_from->h_source, ETH_ALEN);
+		eth_to->h_proto = eth_from->h_proto;
+
+		skb_pull(skb, ETH_HLEN);
+		skb_reset_network_header(skb);
+		iph_to = ip_hdr(skb);
+		iph_from = ip_hdr(pkt);
+
+		iph_to->ihl = 5;
+		iph_to->version = 4;
+		iph_to->tos = 0x2 | (bit ? ISO_ECN_REFLECT_MASK : 0);
+		iph_to->tot_len = htons(ISO_FEEDBACK_HEADER_SIZE - 14);
+		iph_to->id = iph_from->id;
+		iph_to->frag_off = 0;
+		iph_to->ttl = ISO_FEEDBACK_PACKET_TTL;
+		iph_to->protocol = (u8)ISO_FEEDBACK_PACKET_IPPROTO;
+		iph_to->saddr = iph_from->daddr;
+		iph_to->daddr = iph_from->saddr;
+
+		/* NB: this function doesn't "send" the packet */
+		ip_send_check(iph_to);
+
+		/* Driver owns the buffer now; we don't need to free it */
+		skb_xmit(skb);
+		return 1;
+	}
+
+	return 0;
+}
+
+inline int iso_is_generated_feedback(struct sk_buff *skb) {
+	struct ethhdr *eth;
+	struct iphdr *iph;
+	eth = eth_hdr(skb);
+	if(likely(eth->h_proto == htons(ETH_P_IP))) {
+		iph = ip_hdr(skb);
+		if(unlikely(iph->protocol == ISO_FEEDBACK_PACKET_IPPROTO))
+			return 1;
+	}
+	return 0;
+}
 
 /* Local Variables: */
 /* indent-tabs-mode:t */

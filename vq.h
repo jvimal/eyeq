@@ -24,6 +24,8 @@ struct iso_vq_stats {
 	u64 bytes_queued;
 	u64 network_marked;
 	u64 rx_bytes;
+
+	ktime_t last_feedback_gen_time;
 };
 
 struct iso_vq {
