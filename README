@@ -1,0 +1,30 @@
+WIP: Network performance isolation for Cloud Data Centres.
+
+Motivation:
+
+The shared nature of multi-tenant environments raise concerns about
+how resources like CPU, memory, disk and network bandwidth are shared.
+Multi-tenant could mean multiple services like MapReduce / Search /
+Storage sharing the same infrastructure, and different customers in
+the context of a cloud.  It is important that tenants are isolated
+from each other so that the activity of one tenant does not adversely
+impact other tenants sharing the same insfrastructure.
+
+In this report, we look at isolation mechanisms for the network.
+While network ACLs provide reachability isolation between tenants, it
+does not provide performance isolation; a tenant can gain an unfair
+share of network bandwidth by increasing the number of TCP
+connections, or worse, use UDP.  Static source-only rate limiting does
+not suffice, as a tenant can horizontally scale and increase the
+number of transmitters to generate a large N-to-1 traffic pattern.
+Hence, we need a more robust mechanism to conform tenants to a well
+understood model of sharing the network, keeping in mind that the
+tenants cannot be trusted.
+
+People: (Stanford University)
+* Vimal
+* Mohammad Alizadeh
+* Prof. David Mazieres
+* Prof. Balaji Prabhakar
+
+Stay tuned for more information.
