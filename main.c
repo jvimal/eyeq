@@ -44,7 +44,7 @@ static int iso_init() {
 	}
 
 	rcu_read_lock();
-	iso_netdev = dev_get_by_name_rcu(&init_net, iso_param_dev);
+	iso_netdev = dev_get_by_name(&init_net, iso_param_dev);
 	if(iso_netdev == NULL) {
 		printk(KERN_INFO "perfiso: device %s not found", iso_param_dev);
 		goto out;
