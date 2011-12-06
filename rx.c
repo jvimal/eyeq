@@ -89,35 +89,23 @@ inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
 	return klass;
 }
 
-
-#if defined ISO_TX_CLASS_DEV
-int iso_vq_dev_install(char *name) {
+int iso_vq_install(char *_klass) {
+	iso_class_t klass;
 	struct iso_vq *vq;
-	struct net_device *dev;
 	int ret = 0;
 
 	rcu_read_lock();
-	dev = dev_get_by_name_rcu(&init_net, name);
-
-	if(dev == NULL) {
-		printk(KERN_INFO "perfiso: dev %s not found!\n", name);
-		ret = -1;
-		goto err;
-	}
-
-	/* Check if we have already created */
-	vq = iso_vq_find(dev);
+	klass = iso_class_parse(_klass);
+	vq = iso_vq_find(klass);
 	if(vq != NULL) {
-		dev_put(dev);
 		ret = -1;
+		printk(KERN_INFO "perfiso: class %s not found\n", _klass);
 		goto err;
 	}
 
-	vq = iso_vq_alloc(dev);
-
+	vq = iso_vq_alloc(klass);
 	if(vq == NULL) {
-		dev_put(dev);
-		printk(KERN_INFO "perfiso: Could not allocate vq\n");
+		printk(KERN_INFO "perfiso: could not allocate vq\n");
 		ret = -1;
 		goto err;
 	}
@@ -126,66 +114,6 @@ int iso_vq_dev_install(char *name) {
 	rcu_read_unlock();
 	return ret;
 }
-#elif defined ISO_TX_CLASS_ETHER_SRC
-int iso_vq_ether_src_install(char *hwaddr) {
-	iso_class_t ether_src;
-	int ret = 0;
-	struct iso_vq *vq;
-
-	ret = -!mac_pton(hwaddr, (u8*)&ether_src);
-
-	if(ret) {
-		printk(KERN_INFO "perfiso: Cannot parse ether address from %s\n", hwaddr);
-		goto end;
-	}
-
-	/* Check if we have already created */
-	vq = iso_vq_find(ether_src);
-	if(vq != NULL) {
-		ret = -1;
-		goto end;
-	}
-
-	vq = iso_vq_alloc(ether_src);
-
-	if(vq == NULL) {
-		ret = -1;
-		goto end;
-	}
-
- end:
-	return ret;
-}
-#elif defined ISO_TX_CLASS_MARK
-int iso_vq_mark_install(char *mark) {
-	iso_class_t m;
-	int ret = 0;
-	struct iso_vq *vq;
-
-	m = iso_class_parse(mark);
-
-	if(ret) {
-		printk(KERN_INFO "perfiso: Cannot parse mark from %s\n", mark);
-		goto end;
-	}
-
-	/* Check if we have already created */
-	vq = iso_vq_find(m);
-	if(vq != NULL) {
-		ret = -1;
-		goto end;
-	}
-
-	vq = iso_vq_alloc(m);
-	if(vq == NULL) {
-		ret = -1;
-		goto end;
-	}
-
- end:
-	return ret;
-}
-#endif
 
 /* Create a feebdack packet and prepare for transmission.  Returns 1 if successful. */
 inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
