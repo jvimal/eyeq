@@ -6,31 +6,22 @@
 
 extern char *iso_param_dev;
 extern struct net_device *iso_netdev;
-struct nf_hook_ops hook_in;
+
+int iso_rx_bridge_init(void);
+void iso_rx_bridge_exit(void);
 
 int iso_rx_init() {
 	printk(KERN_INFO "perfiso: Init RX path\n");
 	iso_vqs_init();
-
-	hook_in.hook = iso_rx_bridge;
-	hook_in.hooknum= NF_BR_PRE_ROUTING;
-	hook_in.pf = PF_BRIDGE;
-	hook_in.priority = NF_BR_PRI_FIRST;
-
-	return nf_register_hook(&hook_in);
+	return iso_rx_bridge_init();
 }
 
 void iso_rx_exit() {
-	nf_unregister_hook(&hook_in);
+	iso_rx_bridge_exit();
 	iso_vqs_exit();
 }
 
-/* There could be other ways of receiving packets */
-unsigned int iso_rx_bridge(unsigned int hooknum,
-			struct sk_buff *skb,
-			const struct net_device *in,
-			const struct net_device *out,
-			int (*okfn)(struct sk_buff *))
+enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 {
 	struct iso_tx_class *txc;
 	iso_class_t klass;
@@ -38,11 +29,8 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 	struct iso_vq *vq;
 	struct iso_vq_stats *stats;
 	struct iso_rc_state *rc;
-	int changed, ret = NF_ACCEPT;
-
-	/* out will be NULL if this is PRE_ROUTING */
-	if(in != iso_netdev)
-		return ret;
+	int changed;
+	enum iso_verdict verdict = ISO_VERDICT_SUCCESS;
 
 	rcu_read_lock();
 
@@ -70,7 +58,7 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 		state->rl->rate = rc->rfair;
 
 	if(unlikely(iso_is_generated_feedback(skb)))
-		ret = NF_DROP;
+		verdict = ISO_VERDICT_DROP;
 
 	stats = per_cpu_ptr(vq->percpu_stats, smp_processor_id());
 	if(IsoAutoGenerateFeedback) {
@@ -85,7 +73,7 @@ unsigned int iso_rx_bridge(unsigned int hooknum,
 
  accept:
 	rcu_read_unlock();
-	return ret;
+	return verdict;
 }
 
 inline iso_class_t iso_rx_classify(struct sk_buff *skb) {

@@ -6,18 +6,15 @@
 
 extern char *iso_param_dev;
 extern struct net_device *iso_netdev;
-struct nf_hook_ops hook_out;
 struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
+
+int iso_tx_bridge_init(void);
+void iso_tx_bridge_exit(void);
 
 int iso_tx_init() {
 	printk(KERN_INFO "perfiso: Init TX path\n");
 
-	hook_out.hook = iso_tx_bridge;
-	hook_out.hooknum= NF_BR_POST_ROUTING;
-	hook_out.pf = PF_BRIDGE;
-	hook_out.priority = NF_BR_PRI_BRNF;
-
-	return nf_register_hook(&hook_out);
+	return iso_tx_bridge_init();
 }
 
 void iso_tx_exit() {
@@ -26,7 +23,7 @@ void iso_tx_exit() {
 	struct hlist_node *node;
 	struct iso_tx_class *txc;
 
-	nf_unregister_hook(&hook_out);
+	iso_tx_bridge_exit();
 
 	rcu_read_lock();
 
@@ -85,11 +82,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	seq_printf(s, "\n");
 }
 
-unsigned int iso_tx_bridge(unsigned int hooknum,
-			struct sk_buff *skb,
-			const struct net_device *in,
-			const struct net_device *out,
-			int (*okfn)(struct sk_buff *))
+enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 {
 	struct iso_tx_class *txc;
 	struct iso_per_dest_state *state;
@@ -97,11 +90,7 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	struct iso_rl_queue *q;
 	struct iso_vq *vq;
 	enum iso_verdict verdict;
-	int ret = NF_ACCEPT, cpu = smp_processor_id();
-
-	/* out shouldn't be NULL, but let's be careful anyway */
-	if(out != iso_netdev)
-		return NF_ACCEPT;
+	int cpu = smp_processor_id();
 
 	rcu_read_lock();
 	txc = iso_txc_find(iso_txc_classify(skb));
@@ -127,16 +116,10 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 			q->feedback_backlog++;
 	}
 
-	/* If accepted, steal the buffer, else drop it */
-	if(verdict == ISO_VERDICT_SUCCESS)
-		ret = NF_STOLEN;
-	else if(verdict == ISO_VERDICT_DROP)
-		ret = NF_DROP;
-
 	tasklet_schedule(&q->xmit_timeout);
  accept:
 	rcu_read_unlock();
-	return ret;
+	return verdict;
 }
 
 /* Called with rcu lock */

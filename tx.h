@@ -52,12 +52,7 @@ extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
 int iso_tx_init(void);
 void iso_tx_exit(void);
 
-unsigned int iso_tx_bridge(unsigned int hooknum,
-						   struct sk_buff *skb,
-						   const struct net_device *in,
-						   const struct net_device *out,
-						   int (*okfn)(struct sk_buff *));
-
+enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out);
 
 void iso_txc_init(struct iso_tx_class *);
 struct iso_tx_class *iso_txc_alloc(iso_class_t);
