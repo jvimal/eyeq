@@ -229,6 +229,52 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 
 module_param_call(assoc_txc_vq, iso_sys_assoc_txc_vq, iso_sys_noget, NULL, S_IWUSR);
 
+
+/*
+ * Set VQ's weight
+ * echo -n 00:00:00:00:01:01 weight <w>
+ * > /sys/module/perfiso/parameters/set_vq_weight
+ */
+extern spinlock_t vq_spinlock;
+static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
+	char _vqc[128];
+	iso_class_t vqclass;
+	struct iso_vq *vq;
+	unsigned long flags;
+	int n, ret = 0, weight;
+
+	n = sscanf(val, "%s weight %d", _vqc, &weight);
+	if(n != 2) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	vqclass = iso_class_parse(_vqc);
+	vq = iso_vq_find(vqclass);
+	if(vq == NULL) {
+		printk(KERN_INFO "perfiso: Could not find vq %s\n", _vqc);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if(weight < 0 || weight > 1024) {
+		printk(KERN_INFO "perfiso: Invalid weight.  Weight must lie in [1, 1024]\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	spin_lock_irqsave(&vq_spinlock, flags);
+	vq->weight = (u64)weight;
+	spin_unlock_irqrestore(&vq_spinlock, flags);
+
+	printk(KERN_INFO "perfiso: Set weight %d for vq %s\n",
+		   weight, _vqc);
+ out:
+	return ret;
+}
+
+module_param_call(set_vq_weight, iso_sys_set_vq_weight, iso_sys_noget, NULL, S_IWUSR);
+
 /* Local Variables: */
 /* indent-tabs-mode:t */
 /* End: */

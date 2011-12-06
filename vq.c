@@ -3,7 +3,7 @@
 
 s64 vq_total_tokens;
 ktime_t vq_last_update_time;
-static spinlock_t vq_spinlock;
+spinlock_t vq_spinlock;
 struct list_head vq_list;
 static struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
 
