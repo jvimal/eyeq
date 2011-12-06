@@ -351,7 +351,7 @@ inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
 inline void iso_class_free(iso_class_t klass) {}
 
 inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
-	return a == b;
+	return a - b;
 }
 
 /* We don't do any bit mixing here; it's for ease of use */
