@@ -74,7 +74,6 @@ struct iso_param iso_params[32] = {
   {"", NULL},
 };
 
-int iso_num_params = 27;
 struct ctl_table iso_params_table[32];
 struct ctl_path iso_params_path[] = {
 	{ .procname = "perfiso" },
@@ -87,8 +86,11 @@ int iso_params_init() {
 
 	memset(iso_params_table, 0, sizeof(iso_params_table));
 
-	for(i = 0; i < iso_num_params; i++) {
+	for(i = 0; i < 32; i++) {
 		struct ctl_table *entry = &iso_params_table[i];
+		if(iso_params[i].ptr == NULL)
+			break;
+
 		entry->procname = iso_params[i].name;
 		entry->data = iso_params[i].ptr;
 		entry->maxlen = sizeof(int);
