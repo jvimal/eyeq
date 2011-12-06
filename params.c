@@ -30,15 +30,6 @@ int ISO_RFAIR_INCREASE_INTERVAL_US = 5000;
 int ISO_RFAIR_FEEDBACK_TIMEOUT_US = 1000 * 1000;
 int ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE = 10;
 int IsoGlobalEnabled = 0;
-int IsoEnablePortClassMap = 0;
-
-// DEBUG: setting it to 666 means we will ALWAYS generate feedback for
-// EVERY packet!
-// USE IT ONLY FOR DEBUGGING.  You've been warned.
-int IsoAlwaysFeedback = 0;
-
-// This param is a fail-safe.  If anything goes wrong and we reboot,
-// we recover to a fail-safe state.
 int IsoAutoGenerateFeedback = 0;
 int ISO_FEEDBACK_INTERVAL_US = 500;
 
@@ -74,8 +65,6 @@ struct iso_param iso_params[32] = {
   {"ISO_RFAIR_FEEDBACK_TIMEOUT", &ISO_RFAIR_FEEDBACK_TIMEOUT_US },
   {"ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE", &ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE },
   {"IsoGlobalEnabled", &IsoGlobalEnabled },
-  {"IsoEnablePortClassMap", &IsoEnablePortClassMap },
-  {"IsoAlwaysFeedback", &IsoAlwaysFeedback },
   {"IsoAutoGenerateFeedback", &IsoAutoGenerateFeedback },
   {"ISO_FEEDBACK_PACKET_IPPROTO", &ISO_FEEDBACK_PACKET_IPPROTO },
   {"ISO_FEEDBACK_INTERVAL_US", &ISO_FEEDBACK_INTERVAL_US },

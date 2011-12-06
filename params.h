@@ -27,15 +27,6 @@ extern int ISO_RFAIR_INCREASE_INTERVAL_US;
 extern int ISO_RFAIR_FEEDBACK_TIMEOUT_US;
 extern int ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE;
 extern int IsoGlobalEnabled;
-extern int IsoEnablePortClassMap;
-
-// DEBUG: setting it to 666 means we will ALWAYS generate feedback for
-// EVERY packet!
-// USE IT ONLY FOR DEBUGGING.  You've been warned.
-extern int IsoAlwaysFeedback;
-
-// This param is a fail-safe.  If anything goes wrong and we reboot,
-// we recover to a fail-safe state.
 extern int IsoAutoGenerateFeedback;
 extern int ISO_FEEDBACK_INTERVAL_US;
 
