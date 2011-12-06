@@ -343,6 +343,32 @@ inline iso_class_t iso_class_parse(char *hwaddr) {
 	mac_pton(hwaddr, (u8*)&ret);
 	return ret;
 }
+#elif defined ISO_TX_CLASS_MARK
+inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
+	return skb->mark;
+}
+
+inline void iso_class_free(iso_class_t klass) {}
+
+inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
+	return a == b;
+}
+
+/* We don't do any bit mixing here; it's for ease of use */
+inline u32 iso_class_hash(iso_class_t klass) {
+	return klass;
+}
+
+/* Just lazy, looks weird */
+inline void iso_class_show(iso_class_t klass, char *buff) {
+	sprintf(buff, "%d", klass);
+}
+
+inline iso_class_t iso_class_parse(char *hwaddr) {
+	int ret = 0;
+	sscanf(hwaddr, "%d", &ret);
+	return ret;
+}
 #endif
 
 inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
@@ -418,6 +444,28 @@ int iso_txc_ether_src_install(char *hwaddr) {
 
 	txc = iso_txc_alloc(ether_src);
 
+	if(txc == NULL) {
+		ret = -1;
+		goto end;
+	}
+
+ end:
+	return ret;
+}
+#elif defined ISO_TX_CLASS_MARK
+int iso_txc_mark_install(char *mark) {
+	iso_class_t m = iso_class_parse(mark);
+	struct iso_tx_class *txc;
+	int ret = 0;
+
+	/* Check if we have already created */
+	txc = iso_txc_find(m);
+	if(txc != NULL) {
+		ret = -1;
+		goto end;
+	}
+
+	txc = iso_txc_alloc(m);
 	if(txc == NULL) {
 		ret = -1;
 		goto end;

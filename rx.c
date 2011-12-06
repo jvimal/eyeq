@@ -83,6 +83,8 @@ inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
 	klass = skb->dev;
 #elif defined ISO_TX_CLASS_ETHER_SRC
 	memcpy((void *)&klass, eth_hdr(skb)->h_dest, ETH_ALEN);
+#elif defined ISO_TX_CLASS_MARK
+	klass = skb->mark;
 #endif
 	return klass;
 }
@@ -146,6 +148,35 @@ int iso_vq_ether_src_install(char *hwaddr) {
 
 	vq = iso_vq_alloc(ether_src);
 
+	if(vq == NULL) {
+		ret = -1;
+		goto end;
+	}
+
+ end:
+	return ret;
+}
+#elif defined ISO_TX_CLASS_MARK
+int iso_vq_mark_install(char *mark) {
+	iso_class_t m;
+	int ret = 0;
+	struct iso_vq *vq;
+
+	m = iso_class_parse(mark);
+
+	if(ret) {
+		printk(KERN_INFO "perfiso: Cannot parse mark from %s\n", mark);
+		goto end;
+	}
+
+	/* Check if we have already created */
+	vq = iso_vq_find(m);
+	if(vq != NULL) {
+		ret = -1;
+		goto end;
+	}
+
+	vq = iso_vq_alloc(m);
 	if(vq == NULL) {
 		ret = -1;
 		goto end;

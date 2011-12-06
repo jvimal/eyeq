@@ -12,6 +12,8 @@ inline iso_class_t iso_rx_classify(struct sk_buff *);
 int iso_vq_dev_install(char *);
 #elif defined ISO_TX_CLASS_ETHER_SRC
 int iso_vq_ether_src_install(char *);
+#elif defined ISO_TX_CLASS_MARK
+int iso_vq_mark_install(char *);
 #endif
 
 inline int iso_generate_feedback(int bit, struct sk_buff *pkt);

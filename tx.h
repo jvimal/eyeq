@@ -14,6 +14,7 @@
  */
 #define ISO_TX_CLASS_ETHER_SRC
 // #define ISO_TX_CLASS_DEV
+// #define ISO_TX_CLASS_MARK
 
 struct seq_file;
 
@@ -23,6 +24,8 @@ typedef struct net_device *iso_class_t;
 typedef struct {
 	u8 addr[ETH_ALEN];
 }iso_class_t;
+#elif defined ISO_TX_CLASS_MARK
+typedef u32 iso_class_t;
 #endif
 
 /* Per-dest state */
@@ -63,6 +66,8 @@ void iso_txc_show(struct iso_tx_class *, struct seq_file *);
 int iso_txc_dev_install(char *);
 #elif defined ISO_TX_CLASS_ETHER_SRC
 int iso_txc_ether_src_install(char *hwaddr);
+#elif defined ISO_TX_CLASS_MARK
+int iso_txc_mark_install(char *mark);
 #endif
 
 inline iso_class_t iso_txc_classify(struct sk_buff *);

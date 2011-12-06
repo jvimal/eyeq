@@ -132,6 +132,8 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	ret = iso_txc_dev_install(buff);
 #elif defined ISO_TX_CLASS_ETHER_SRC
 	ret = iso_txc_ether_src_install(buff);
+#elif defined ISO_TX_CLASS_MARK
+	ret = iso_txc_mark_install(buff);
 #endif
 
 	if(ret)
@@ -167,6 +169,8 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	ret = iso_vq_dev_install(buff);
 #elif defined ISO_TX_CLASS_ETHER_SRC
 	ret = iso_vq_ether_src_install(buff);
+#elif defined ISO_TX_CLASS_MARK
+	ret = iso_vq_mark_install(buff);
 #endif
 
 	if(ret)
