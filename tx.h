@@ -70,6 +70,8 @@ int iso_txc_ether_src_install(char *hwaddr);
 int iso_txc_mark_install(char *mark);
 #endif
 
+int iso_txc_install(char *klass);
+
 inline iso_class_t iso_txc_classify(struct sk_buff *);
 inline void iso_class_free(iso_class_t);
 inline int iso_class_cmp(iso_class_t a, iso_class_t b);

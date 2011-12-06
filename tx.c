@@ -476,6 +476,17 @@ int iso_txc_mark_install(char *mark) {
 }
 #endif
 
+int iso_txc_install(char *klass) {
+	int ret;
+#if defined ISO_TX_CLASS_DEV
+	ret = iso_txc_dev_install(klass);
+#elif defined ISO_TX_CLASS_ETHER_SRC
+	ret = iso_txc_ether_src_install(klass);
+#elif defined ISO_TX_CLASS_MARK
+	ret = iso_txc_mark_install(klass);
+#endif
+	return ret;
+}
 /* Local Variables: */
 /* indent-tabs-mode:t */
 /* End: */

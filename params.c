@@ -128,13 +128,7 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	strncpy(buff, val, len);
 	buff[len] = '\0';
 
-#if defined ISO_TX_CLASS_DEV
-	ret = iso_txc_dev_install(buff);
-#elif defined ISO_TX_CLASS_ETHER_SRC
-	ret = iso_txc_ether_src_install(buff);
-#elif defined ISO_TX_CLASS_MARK
-	ret = iso_txc_mark_install(buff);
-#endif
+	ret = iso_txc_install(buff);
 
 	if(ret)
 		return -EINVAL;
