@@ -144,7 +144,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	max_drain = (vq->rate * dt) >> 3;
 
 	/* assimilate and reset per-cpu counters */
-	for_each_possible_cpu(i) {
+	for_each_online_cpu(i) {
 		struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, i);
 		vq->backlog += stats->bytes_queued;
 		stats->bytes_queued = 0;
@@ -189,7 +189,7 @@ void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
 			   vq->rate, vq->backlog, vq->weight,
 			   atomic_read(&vq->refcnt));
 
-	for_each_possible_cpu(i) {
+	for_each_online_cpu(i) {
 		if(first) {
 			first = 0;
 			seq_printf(s, "\t cpu   enqueued   network-mark   rx\n");

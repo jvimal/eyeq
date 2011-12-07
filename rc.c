@@ -101,7 +101,7 @@ inline void iso_rc_do_alpha(struct iso_rc_state *rc) {
 	u64 frac;
 	int i;
 
-	for_each_possible_cpu(i) {
+	for_each_online_cpu(i) {
 		stats = &rc->stats[i];
 		num_marked += stats->num_marked;
 		num_rx += stats->num_rx;
