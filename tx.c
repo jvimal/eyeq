@@ -116,7 +116,7 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 			q->feedback_backlog++;
 	}
 
-	tasklet_schedule(&q->xmit_timeout);
+	iso_rl_dequeue((unsigned long)q);
  accept:
 	rcu_read_unlock();
 	return verdict;
