@@ -164,6 +164,16 @@ struct iso_per_dest_state
 	state = kmalloc(sizeof(*state), GFP_ATOMIC);
 	if(likely(state != NULL)) {
 		state->ip_key = ip;
+		/* A small hack for per-cpu variables for now.  This happens
+		 * rarely, so it could be OK. */
+#define _size sizeof(struct iso_rc_stats)
+#define CACHE_DATA_ALIGN 16
+		state->tx_rc.stats = kzalloc(NR_CPUS * ALIGN(_size, CACHE_DATA_ALIGN), GFP_ATOMIC);
+		if(unlikely(state->tx_rc.stats == NULL)) {
+			kfree(state);
+			return NULL;
+		}
+
 		state->rl = iso_pick_rl(txc, ip);
 		iso_rc_init(&state->tx_rc);
 		INIT_HLIST_NODE(&state->hash_node);
@@ -174,6 +184,7 @@ struct iso_per_dest_state
 }
 
 void iso_state_free(struct iso_per_dest_state *state) {
+	kfree(state->tx_rc.stats);
 	kfree(state);
 }
 

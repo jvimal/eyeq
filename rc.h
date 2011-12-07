@@ -6,13 +6,18 @@
 #include "params.h"
 #include "rl.h"
 
+struct iso_rc_stats {
+	u64 num_marked;
+	u64 num_rx;
+};
+
 /* Rate controller specific state */
 struct iso_rc_state {
 	u64 rfair;
 	u64 alpha;
 
-	/* TODO: per cpu */
-	u64 num_marked;
+	/* Manually cache-aligned per-cpu structure. */
+	struct iso_rc_stats *stats;
 
 	ktime_t last_rfair_change_time;
 	ktime_t last_rfair_decrease_time;

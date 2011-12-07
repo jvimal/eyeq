@@ -2,13 +2,19 @@
 #include "rc.h"
 
 inline void iso_rc_init(struct iso_rc_state *rc) {
+	int i;
 	rc->rfair = ISO_RFAIR_INITIAL;
 	rc->alpha = 0;
-	rc->num_marked = 0;
 
 	rc->last_rfair_change_time = ktime_get();
 	rc->last_rfair_decrease_time = ktime_get();
 	rc->last_feedback_time = ktime_get();
+
+	for_each_possible_cpu(i) {
+		struct iso_rc_stats *stats = &rc->stats[i];
+		stats->num_marked = 0;
+		stats->num_rx = 0;
+	}
 
 	spin_lock_init(&rc->spinlock);
 }
@@ -23,10 +29,13 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 	ktime_t now = ktime_get();
 	int changed = 0;
 	u64 dt;
+	struct iso_rc_stats *stats = &rc->stats[smp_processor_id()];
+
+	stats->num_rx++;
 
 	if(marked) {
 		dt = ktime_us_delta(now, rc->last_rfair_decrease_time);
-		rc->num_marked++;
+		stats->num_marked++;
 
 		/* Reduce lock contention by being optimistic */
 		if(dt > ISO_RFAIR_DECREASE_INTERVAL_US) {
@@ -87,23 +96,51 @@ inline void iso_rc_do_md(struct iso_rc_state *rc) {
 }
 
 inline void iso_rc_do_alpha(struct iso_rc_state *rc) {
-	u64 num_marked = rc->num_marked;
-	u64 frac = num_marked > 0 ? 1024 : 0;
+	struct iso_rc_stats *stats;
+	u64 num_marked = 0, num_rx = 0;
+	u64 frac;
+	int i;
+
+	for_each_possible_cpu(i) {
+		stats = &rc->stats[i];
+		num_marked += stats->num_marked;
+		num_rx += stats->num_rx;
+
+		stats->num_marked = stats->num_rx = 0;
+	}
+
+	frac = 1024 * num_marked / num_rx;
 
 #define MUL31(x) (((x) << 5) - (x))
 #define DIV32(x) ((x) >> 5)
 #define EWMA_G32(old, new)  DIV32((MUL31(old) + new))
 
 	rc->alpha = EWMA_G32(rc->alpha, frac);
-	rc->num_marked = 0;
 }
 
 void iso_rc_show(struct iso_rc_state *rc, struct seq_file *s) {
-	seq_printf(s, "\trfair %llu   alpha %llu   num_marked %llu   "
+	int i;
+	struct iso_rc_stats *stats;
+
+	seq_printf(s, "\trfair %llu   alpha %llu   "
 			   "last_change %llx   last_decrease %llx   last_feedback %llx\n",
-			   rc->rfair, rc->alpha, rc->num_marked,
+			   rc->rfair, rc->alpha,
 			   *(u64*)&rc->last_rfair_change_time, *(u64*)&rc->last_rfair_decrease_time,
 			   *(u64*)&rc->last_feedback_time);
+
+	seq_printf(s, "\t\tpercpu rx:");
+	for_each_online_cpu(i) {
+		stats = &rc->stats[i];
+		seq_printf(s, "  %9llx", stats->num_rx);
+	}
+
+	seq_printf(s, "\n\t\tpercpu fb:");
+	for_each_online_cpu(i) {
+		stats = &rc->stats[i];
+		seq_printf(s, "  %9llx", stats->num_marked);
+	}
+
+	seq_printf(s, "\n");
 }
 
 /* Local Variables: */
