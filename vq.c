@@ -52,6 +52,7 @@ int iso_vq_init(struct iso_vq *vq) {
 	vq->enabled = 1;
 	vq->active = 0;
 	vq->is_static = 0;
+	vq->rate = 1;
 	vq->total_bytes_queued = 0;
 	vq->backlog = 0;
 	vq->weight = 1;
