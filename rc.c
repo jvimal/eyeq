@@ -98,7 +98,7 @@ inline void iso_rc_do_md(struct iso_rc_state *rc) {
 inline void iso_rc_do_alpha(struct iso_rc_state *rc) {
 	struct iso_rc_stats *stats;
 	u64 num_marked = 0, num_rx = 0;
-	u64 frac;
+	u64 frac = 0;
 	int i;
 
 	for_each_online_cpu(i) {
@@ -109,7 +109,8 @@ inline void iso_rc_do_alpha(struct iso_rc_state *rc) {
 		stats->num_marked = stats->num_rx = 0;
 	}
 
-	frac = 1024 * num_marked / num_rx;
+	if(likely(num_rx))
+		frac = 1024 * num_marked / num_rx;
 
 #define MUL31(x) (((x) << 5) - (x))
 #define DIV32(x) ((x) >> 5)

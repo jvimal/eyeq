@@ -129,7 +129,7 @@ void iso_vq_tick(u64 dt) {
 
 	/* Reassign capacities */
 	for_each_vq(vq) {
-		if(iso_vq_active(vq)) {
+		if(iso_vq_active(vq) && active_weight > 0) {
 			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / active_weight;
 		}
 	}
