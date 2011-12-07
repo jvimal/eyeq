@@ -12,9 +12,9 @@
  * It is your job to ensure that exactly ONE of the #defines are
  * defined.
  */
-#define ISO_TX_CLASS_ETHER_SRC
+// #define ISO_TX_CLASS_ETHER_SRC
 // #define ISO_TX_CLASS_DEV
-// #define ISO_TX_CLASS_MARK
+#define ISO_TX_CLASS_MARK
 
 struct seq_file;
 
