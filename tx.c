@@ -55,7 +55,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 		sprintf(vqc, "(none)");
 	}
 
-	seq_printf(s, "txc klass %s   assoc vq %s\n", buff, vqc);
+	seq_printf(s, "txc class %s   assoc vq %s\n", buff, vqc);
 
 	seq_printf(s, "per dest state:\n");
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {

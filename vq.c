@@ -183,7 +183,7 @@ void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
 	struct iso_vq_stats *stats;
 
 	iso_class_show(vq->klass, buff);
-	seq_printf(s, "klass %s   flags %d%d%d   rate %llu   backlog %llu   weight %llu"
+	seq_printf(s, "vq class %s   flags %d%d%d   rate %llu   backlog %llu   weight %llu"
 			   "   refcnt %d\n",
 			   buff, vq->enabled, vq->active, vq->is_static,
 			   vq->rate, vq->backlog, vq->weight,

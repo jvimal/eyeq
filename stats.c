@@ -7,6 +7,8 @@
 #include "tx.h"
 #include "vq.h"
 
+extern char *iso_param_dev;
+
 static void *iso_stats_proc_seq_start(struct seq_file *s, loff_t *pos)
 {
 	static unsigned long counter = 0;
@@ -41,6 +43,9 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 
 	int i;
 	rcu_read_lock();
+
+	seq_printf(s, "iso_param_dev %s\n", iso_param_dev);
+
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &iso_tx_bucket[i];
 		hlist_for_each_entry_rcu(txc, node, head, hash_node) {
