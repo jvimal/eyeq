@@ -197,7 +197,7 @@ struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 	head = &txc->rl_bucket[ip & (ISO_MAX_RL_BUCKETS - 1)];
 	hlist_for_each_entry_rcu(rl, node, head, hash_node) {
 		if(rl->ip == ip)
-			return rl;
+			goto found;
 	}
 
 	rl = kmalloc(sizeof(*rl), GFP_ATOMIC);
@@ -206,6 +206,8 @@ struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 		rl->ip = ip;
 		hlist_add_head_rcu(&rl->hash_node, head);
 	}
+
+ found:
 	rcu_read_unlock();
 
 	return rl;
@@ -385,16 +387,19 @@ inline iso_class_t iso_class_parse(char *hwaddr) {
 inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
 	struct hlist_head *head = iso_txc_find_bucket(klass);
 	struct iso_tx_class *txc;
+	struct iso_tx_class *found = NULL;
 	struct hlist_node *n;
 
 	rcu_read_lock();
 	hlist_for_each_entry_rcu(txc, n, head, hash_node) {
-		if(iso_class_cmp(txc->klass, klass) == 0)
-			return txc;
+		if(iso_class_cmp(txc->klass, klass) == 0) {
+			found = txc;
+			break;
+		}
 	}
 	rcu_read_unlock();
 
-	return NULL;
+	return found;
 }
 
 #if defined ISO_TX_CLASS_DEV
