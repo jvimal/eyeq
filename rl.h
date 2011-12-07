@@ -70,7 +70,7 @@ inline u64 iso_rl_singleq_burst(struct iso_rl *);
 inline void skb_xmit(struct sk_buff *skb);
 
 static inline int skb_size(struct sk_buff *skb) {
-	return skb->len;
+	return ETH_HLEN + skb->len;
 }
 
 #define ISO_ECN_REFLECT_MASK (1 << 3)
