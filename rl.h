@@ -24,7 +24,8 @@
 
 enum iso_verdict {
 	ISO_VERDICT_SUCCESS,
-	ISO_VERDICT_DROP
+	ISO_VERDICT_DROP,
+	ISO_VERDICT_PASS,
 };
 
 struct iso_rl_queue {

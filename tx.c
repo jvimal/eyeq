@@ -89,7 +89,7 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 	struct iso_rl *rl;
 	struct iso_rl_queue *q;
 	struct iso_vq *vq;
-	enum iso_verdict verdict;
+	enum iso_verdict verdict = ISO_VERDICT_PASS;
 	int cpu = smp_processor_id();
 
 	rcu_read_lock();

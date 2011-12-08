@@ -108,6 +108,7 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 	case ISO_VERDICT_SUCCESS:
 		return NF_STOLEN;
 
+	case ISO_VERDICT_PASS:
 	default:
 		return NF_ACCEPT;
 	}
