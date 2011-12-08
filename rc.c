@@ -11,7 +11,7 @@ inline void iso_rc_init(struct iso_rc_state *rc) {
 	rc->last_feedback_time = ktime_get();
 
 	for_each_possible_cpu(i) {
-		struct iso_rc_stats *stats = &rc->stats[i];
+		struct iso_rc_stats *stats = per_cpu_ptr(rc->stats, i);
 		stats->num_marked = 0;
 		stats->num_rx = 0;
 	}
@@ -29,7 +29,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 	ktime_t now = ktime_get();
 	int changed = 0;
 	u64 dt;
-	struct iso_rc_stats *stats = &rc->stats[smp_processor_id()];
+	struct iso_rc_stats *stats = per_cpu_ptr(rc->stats, smp_processor_id());
 
 	stats->num_rx++;
 
@@ -102,7 +102,7 @@ inline void iso_rc_do_alpha(struct iso_rc_state *rc) {
 	int i;
 
 	for_each_online_cpu(i) {
-		stats = &rc->stats[i];
+		stats = per_cpu_ptr(rc->stats, i);
 		num_marked += stats->num_marked;
 		num_rx += stats->num_rx;
 
@@ -131,13 +131,13 @@ void iso_rc_show(struct iso_rc_state *rc, struct seq_file *s) {
 
 	seq_printf(s, "\t\tpercpu rx:");
 	for_each_online_cpu(i) {
-		stats = &rc->stats[i];
+		stats = per_cpu_ptr(rc->stats, i);
 		seq_printf(s, "  %9llx", stats->num_rx);
 	}
 
 	seq_printf(s, "\n\t\tpercpu fb:");
 	for_each_online_cpu(i) {
-		stats = &rc->stats[i];
+		stats = per_cpu_ptr(rc->stats, i);
 		seq_printf(s, "  %9llx", stats->num_marked);
 	}
 

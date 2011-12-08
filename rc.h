@@ -16,8 +16,7 @@ struct iso_rc_state {
 	u64 rfair;
 	u64 alpha;
 
-	/* Manually cache-aligned per-cpu structure. */
-	struct iso_rc_stats *stats;
+	struct iso_rc_stats __percpu *stats;
 
 	ktime_t last_rfair_change_time;
 	ktime_t last_rfair_decrease_time;

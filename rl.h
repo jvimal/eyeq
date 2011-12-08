@@ -54,6 +54,7 @@ struct iso_rl {
 
 	struct iso_rl_queue __percpu *queue;
 	struct hlist_node hash_node;
+	struct list_head prealloc_list;
 };
 
 void iso_rl_init(struct iso_rl *);

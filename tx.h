@@ -36,6 +36,7 @@ struct iso_per_dest_state {
 	/* Tx and Rx state = stats + control variables */
 	struct iso_rc_state tx_rc;
 	struct hlist_node hash_node;
+	struct list_head prealloc_list;
 };
 
 /* The unit of fairness */
@@ -49,6 +50,12 @@ struct iso_tx_class {
 	struct list_head list;
 	struct hlist_node hash_node;
 	spinlock_t writelock;
+
+	struct list_head prealloc_state_list;
+	struct list_head prealloc_rl_list;
+
+	/* Allocate from process context */
+	// struct work_struct allocator;
 };
 
 extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
@@ -81,6 +88,7 @@ inline void iso_class_show(iso_class_t, char *);
 inline iso_class_t iso_class_parse(char*);
 inline struct iso_tx_class *iso_txc_find(iso_class_t);
 
+void iso_state_init(struct iso_per_dest_state *);
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *, int rx);
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32);
 void iso_state_free(struct iso_per_dest_state *);
