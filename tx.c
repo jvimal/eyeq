@@ -152,6 +152,7 @@ struct iso_per_dest_state
 	hash = ip & (ISO_MAX_STATE_BUCKETS - 1);
 	head = &txc->state_bucket[hash];
 
+ again:
 	state = NULL;
 	hlist_for_each_entry_rcu(state, node, head, hash_node) {
 		if(state->ip_key == ip)
@@ -160,6 +161,9 @@ struct iso_per_dest_state
 
 	if(likely(state != NULL))
 		return state;
+
+	if(spin_trylock(&txc->writelock))
+		goto again;
 
 	state = kmalloc(sizeof(*state), GFP_ATOMIC);
 	if(likely(state != NULL)) {
@@ -180,6 +184,7 @@ struct iso_per_dest_state
 		hlist_add_head_rcu(&state->hash_node, head);
 	}
 
+	spin_unlock(&txc->writelock);
 	return state;
 }
 
@@ -224,6 +229,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	INIT_LIST_HEAD(&txc->list);
 	INIT_HLIST_NODE(&txc->hash_node);
 	txc->vq = NULL;
+	spin_lock_init(&txc->writelock);
 }
 
 static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {

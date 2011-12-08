@@ -2,6 +2,7 @@
 #include <linux/sysctl.h>
 #include <linux/moduleparam.h>
 #include <linux/stat.h>
+#include <linux/semaphore.h>
 
 #include "params.h"
 #include "tx.h"
@@ -120,6 +121,7 @@ void iso_params_exit() {
  * If compiled with CLASS_ETHER_SRC
  * echo -n 00:00:00:00:01:01 > /sys/module/perfiso/parameters/create_txc
  */
+static DEFINE_SEMAPHORE(config_mutex);
 static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	char buff[128];
 	int len, ret;
@@ -128,7 +130,12 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	strncpy(buff, val, len);
 	buff[len] = '\0';
 
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
 	ret = iso_txc_install(buff);
+
+	up(&config_mutex);
 
 	if(ret)
 		return -EINVAL;
@@ -159,7 +166,12 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	strncpy(buff, val, len);
 	buff[len] = '\0';
 
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
 	ret = iso_vq_install(buff);
+
+	up(&config_mutex);
 
 	if(ret)
 		return -EINVAL;

@@ -48,6 +48,7 @@ struct iso_tx_class {
 	struct iso_vq *vq;
 	struct list_head list;
 	struct hlist_node hash_node;
+	spinlock_t writelock;
 };
 
 extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
