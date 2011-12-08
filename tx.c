@@ -165,6 +165,15 @@ struct iso_per_dest_state
 	if(spin_trylock(&txc->writelock))
 		goto again;
 
+	/* Check again; shouldn't we use a rwlock_t? */
+	hlist_for_each_entry_rcu(state, node, head, hash_node) {
+		if(state->ip_key == ip)
+			break;
+	}
+
+	if(unlikely(state != NULL))
+		goto unlock;
+
 	state = kmalloc(sizeof(*state), GFP_ATOMIC);
 	if(likely(state != NULL)) {
 		state->ip_key = ip;
@@ -175,7 +184,8 @@ struct iso_per_dest_state
 		state->tx_rc.stats = kzalloc(NR_CPUS * ALIGN(_size, CACHE_DATA_ALIGN), GFP_ATOMIC);
 		if(unlikely(state->tx_rc.stats == NULL)) {
 			kfree(state);
-			return NULL;
+			state = NULL;
+			goto unlock;
 		}
 
 		state->rl = iso_pick_rl(txc, ip);
@@ -184,6 +194,7 @@ struct iso_per_dest_state
 		hlist_add_head_rcu(&state->hash_node, head);
 	}
 
+ unlock:
 	spin_unlock(&txc->writelock);
 	return state;
 }
