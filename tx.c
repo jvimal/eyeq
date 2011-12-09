@@ -55,7 +55,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 		sprintf(vqc, "(none)");
 	}
 
-	seq_printf(s, "txc class %s   assoc vq %s\n", buff, vqc);
+	seq_printf(s, "txc class %s   assoc vq %s   freelist %d\n", buff, vqc, txc->freelist_count);
 
 	seq_printf(s, "per dest state:\n");
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
@@ -186,8 +186,13 @@ struct iso_per_dest_state
 
 		/* remove from prealloc list */
 		list_del_rcu(&state->prealloc_list);
+		txc->freelist_count--;
 		break;
 	}
+
+	/* Do we need to reallocate? */
+	if(txc->freelist_count <= 10)
+		schedule_work(&txc->allocator);
 
  unlock:
 	spin_unlock(&txc->writelock);
@@ -243,6 +248,14 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	INIT_HLIST_NODE(&txc->hash_node);
 	txc->vq = NULL;
 	spin_lock_init(&txc->writelock);
+	txc->freelist_count = 0;
+
+	INIT_WORK(&txc->allocator, iso_txc_allocator);
+}
+
+void iso_txc_allocator(struct work_struct *work) {
+	struct iso_tx_class *txc = container_of(work, struct iso_tx_class, allocator);
+	iso_txc_prealloc(txc, 256);
 }
 
 static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
@@ -252,11 +265,7 @@ static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
 /* Can sleep */
 struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 	struct iso_tx_class *txc;
-	struct iso_per_dest_state *state;
-	struct iso_rl *rl;
 	struct hlist_head *head;
-	unsigned long flags;
-	int i;
 
 	txc = kmalloc(sizeof(*txc), GFP_KERNEL);
 	if(!txc)
@@ -269,8 +278,31 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 
 	/* Preallocate some perdest state and rate limiters.  256 entries
 	 * ought to be enough for everybody ;) */
-	printk(KERN_INFO "Preallocating 256 RLs and per-dest-states\n");
-	for(i = 0; i < 256; i++) {
+	iso_txc_prealloc(txc, 256);
+
+	head = iso_txc_find_bucket(klass);
+	hlist_add_head_rcu(&txc->hash_node, head);
+	rcu_read_unlock();
+
+	return txc;
+}
+
+void iso_state_init(struct iso_per_dest_state *state) {
+	state->rl = NULL;
+	iso_rc_init(&state->tx_rc);
+	INIT_LIST_HEAD(&state->prealloc_list);
+	INIT_HLIST_NODE(&state->hash_node);
+}
+
+void iso_txc_prealloc(struct iso_tx_class *txc, int num) {
+	int i;
+	struct iso_per_dest_state *state;
+	struct iso_rl *rl;
+	unsigned long flags;
+
+	printk(KERN_INFO "Preallocating %d RLs and per-dest-states\n", num);
+
+	for(i = 0; i < num; i++) {
 		state = kmalloc(sizeof(*state), GFP_KERNEL);
 		if(state == NULL)
 			break;
@@ -292,23 +324,11 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 		iso_rl_init(rl);
 
 		spin_lock_irqsave(&txc->writelock, flags);
+		txc->freelist_count++;
 		list_add_tail_rcu(&state->prealloc_list, &txc->prealloc_state_list);
 		list_add_tail_rcu(&rl->prealloc_list, &txc->prealloc_rl_list);
 		spin_unlock_irqrestore(&txc->writelock, flags);
 	}
-
-	head = iso_txc_find_bucket(klass);
-	hlist_add_head_rcu(&txc->hash_node, head);
-	rcu_read_unlock();
-
-	return txc;
-}
-
-void iso_state_init(struct iso_per_dest_state *state) {
-	state->rl = NULL;
-	iso_rc_init(&state->tx_rc);
-	INIT_LIST_HEAD(&state->prealloc_list);
-	INIT_HLIST_NODE(&state->hash_node);
 }
 
 /* Called with rcu lock */

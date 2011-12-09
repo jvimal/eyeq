@@ -4,6 +4,7 @@
 #include <linux/rculist.h>
 #include <linux/types.h>
 #include <linux/seq_file.h>
+#include <linux/workqueue.h>
 #include "rl.h"
 #include "rc.h"
 
@@ -53,9 +54,10 @@ struct iso_tx_class {
 
 	struct list_head prealloc_state_list;
 	struct list_head prealloc_rl_list;
+	int freelist_count;
 
 	/* Allocate from process context */
-	// struct work_struct allocator;
+	struct work_struct allocator;
 };
 
 extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
@@ -79,6 +81,8 @@ int iso_txc_mark_install(char *mark);
 #endif
 
 int iso_txc_install(char *klass);
+void iso_txc_prealloc(struct iso_tx_class *, int);
+void iso_txc_allocator(struct work_struct *);
 
 inline iso_class_t iso_txc_classify(struct sk_buff *);
 inline void iso_class_free(iso_class_t);
