@@ -20,12 +20,10 @@ void iso_vqs_init() {
 }
 
 void iso_vqs_exit() {
-	struct iso_vq *vq;
-	rcu_read_lock();
+	struct iso_vq *vq, *vq_next;
 	for_each_vq(vq) {
 		iso_vq_free(vq);
 	}
-	rcu_read_unlock();
 }
 
 struct iso_vq *iso_vq_alloc(iso_class_t klass) {
@@ -80,9 +78,9 @@ int iso_vq_init(struct iso_vq *vq) {
 void iso_vq_free(struct iso_vq *vq) {
 	if(atomic_read(&vq->refcnt) > 0)
 		return;
-	rcu_read_lock();
-	list_del_rcu(&vq->list);
-	rcu_read_unlock();
+
+	synchronize_rcu();
+	list_del(&vq->list);
 	free_percpu(vq->percpu_stats);
 	kfree(vq);
 }
@@ -115,7 +113,7 @@ inline int iso_vq_active(struct iso_vq *vq) {
 void iso_vq_tick(u64 dt) {
 	u64 diff_tokens = (ISO_VQ_DRAIN_RATE_MBPS * dt) >> 3;
 	u64 active_weight = 0;
-	struct iso_vq *vq;
+	struct iso_vq *vq, *vq_next;
 
 	vq_total_tokens += diff_tokens;
 	vq_total_tokens = min((u64)(ISO_VQ_DRAIN_RATE_MBPS * ISO_MAX_BURST_TIME_US) >> 3,

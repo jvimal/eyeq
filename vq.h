@@ -56,7 +56,7 @@ extern struct list_head vq_list;
 extern s64 vq_total_tokens;
 extern ktime_t vq_last_update_time;
 
-#define for_each_vq(vq) list_for_each_entry_rcu(vq, &vq_list, list)
+#define for_each_vq(vq) list_for_each_entry_safe(vq, vq_next, &vq_list, list)
 #define ISO_VQ_DEFAULT_RATE_MBPS (100) /* This parameter shouldn't matter */
 
 void iso_vqs_init(void);

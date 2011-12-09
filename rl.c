@@ -25,6 +25,8 @@ void iso_rl_init(struct iso_rl *rl) {
 
 		q->rl = rl;
 	}
+
+	INIT_LIST_HEAD(&rl->prealloc_list);
 }
 
 void iso_rl_free(struct iso_rl *rl) {

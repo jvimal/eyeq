@@ -20,21 +20,18 @@ int iso_tx_init() {
 void iso_tx_exit() {
 	int i;
 	struct hlist_head *head;
-	struct hlist_node *node;
+	struct hlist_node *node, *nextnode;
 	struct iso_tx_class *txc;
 
 	iso_tx_bridge_exit();
 
-	rcu_read_lock();
-
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &iso_tx_bucket[i];
-		hlist_for_each_entry_rcu(txc, node, head, hash_node) {
+		hlist_for_each_entry_safe(txc, nextnode, node, head, hash_node) {
+			hlist_del(&txc->hash_node);
 			iso_txc_free(txc);
 		}
 	}
-
-	rcu_read_unlock();
 }
 
 /* Called with rcu lock */
@@ -130,7 +127,7 @@ struct iso_per_dest_state
 {
 	struct ethhdr *eth;
 	struct iphdr *iph;
-	struct iso_per_dest_state *state = NULL;
+	struct iso_per_dest_state *state = NULL, *nextstate;
 	struct hlist_head *head;
 	struct hlist_node *node;
 
@@ -152,7 +149,6 @@ struct iso_per_dest_state
 	hash = ip & (ISO_MAX_STATE_BUCKETS - 1);
 	head = &txc->state_bucket[hash];
 
- again:
 	state = NULL;
 	hlist_for_each_entry_rcu(state, node, head, hash_node) {
 		if(state->ip_key == ip)
@@ -162,8 +158,8 @@ struct iso_per_dest_state
 	if(likely(state != NULL))
 		return state;
 
-	if(spin_trylock(&txc->writelock))
-		goto again;
+	if(!spin_trylock(&txc->writelock))
+		return NULL;
 
 	/* Check again; shouldn't we use a rwlock_t? */
 	hlist_for_each_entry_rcu(state, node, head, hash_node) {
@@ -174,7 +170,7 @@ struct iso_per_dest_state
 	if(unlikely(state != NULL))
 		goto unlock;
 
-	list_for_each_entry_rcu(state, &txc->prealloc_state_list, prealloc_list) {
+	list_for_each_entry_safe(state, nextstate, &txc->prealloc_state_list, prealloc_list) {
 		state->ip_key = ip;
 		state->rl = iso_pick_rl(txc, ip);
 		if(state->rl == NULL)
@@ -183,9 +179,8 @@ struct iso_per_dest_state
 		iso_rc_init(&state->tx_rc);
 		INIT_HLIST_NODE(&state->hash_node);
 		hlist_add_head_rcu(&state->hash_node, head);
-
 		/* remove from prealloc list */
-		list_del_rcu(&state->prealloc_list);
+		list_del_init(&state->prealloc_list);
 		txc->freelist_count--;
 		break;
 	}
@@ -196,6 +191,7 @@ struct iso_per_dest_state
 
  unlock:
 	spin_unlock(&txc->writelock);
+
 	return state;
 }
 
@@ -206,7 +202,7 @@ void iso_state_free(struct iso_per_dest_state *state) {
 
 /* Called with txc->writelock */
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
-	struct iso_rl *rl = NULL;
+	struct iso_rl *rl = NULL, *temp;
 	struct hlist_head *head;
 	struct hlist_node *node;
 	rcu_read_lock();
@@ -218,12 +214,11 @@ struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 	}
 
 	rl = NULL;
-	list_for_each_entry_rcu(rl, &txc->prealloc_rl_list, prealloc_list) {
-		iso_rl_init(rl);
+	list_for_each_entry_safe(rl, temp, &txc->prealloc_rl_list, prealloc_list) {
 		rl->ip = ip;
 		hlist_add_head_rcu(&rl->hash_node, head);
 		/* remove from prealloc list */
-		list_del_rcu(&rl->prealloc_list);
+		list_del_init(&rl->prealloc_list);
 		break;
 	}
 
@@ -274,12 +269,11 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 	iso_txc_init(txc);
 	txc->klass = klass;
 
-	rcu_read_lock();
-
 	/* Preallocate some perdest state and rate limiters.  256 entries
 	 * ought to be enough for everybody ;) */
 	iso_txc_prealloc(txc, 256);
 
+	rcu_read_lock();
 	head = iso_txc_find_bucket(klass);
 	hlist_add_head_rcu(&txc->hash_node, head);
 	rcu_read_unlock();
@@ -325,8 +319,8 @@ void iso_txc_prealloc(struct iso_tx_class *txc, int num) {
 
 		spin_lock_irqsave(&txc->writelock, flags);
 		txc->freelist_count++;
-		list_add_tail_rcu(&state->prealloc_list, &txc->prealloc_state_list);
-		list_add_tail_rcu(&rl->prealloc_list, &txc->prealloc_rl_list);
+		list_add_tail(&state->prealloc_list, &txc->prealloc_state_list);
+		list_add_tail(&rl->prealloc_list, &txc->prealloc_rl_list);
 		spin_unlock_irqrestore(&txc->writelock, flags);
 	}
 }
@@ -334,20 +328,18 @@ void iso_txc_prealloc(struct iso_tx_class *txc, int num) {
 /* Called with rcu lock */
 void iso_txc_free(struct iso_tx_class *txc) {
 	struct hlist_head *head;
-	struct hlist_node *n;
-	struct iso_rl *rl;
-	struct iso_per_dest_state *state;
-
+	struct hlist_node *n, *nn;
+	struct iso_rl *rl, *temprl;
+	struct iso_per_dest_state *state, *tempstate;
 	int i;
 
-	hlist_del_init_rcu(&txc->hash_node);
+	synchronize_rcu();
 
 	/* Kill each rate limiter */
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {
 		head = &txc->rl_bucket[i];
-		hlist_for_each_entry_rcu(rl, n, head, hash_node) {
+		hlist_for_each_entry_safe(rl, n, nn, head, hash_node) {
 			hlist_del_init_rcu(&rl->hash_node);
-			/* XXX: Actually, we shouldn't do this; we have to "call_rcu" */
 			iso_rl_free(rl);
 		}
 	}
@@ -355,9 +347,8 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	/* Kill each state */
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
 		head = &txc->state_bucket[i];
-		hlist_for_each_entry_rcu(state, n, head, hash_node) {
+		hlist_for_each_entry_safe(state, n, nn, head, hash_node) {
 			hlist_del_init_rcu(&state->hash_node);
-			/* XXX: Actually, we shouldn't do this; we have to "call_rcu" */
 			iso_state_free(state);
 		}
 	}
@@ -366,15 +357,13 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	iso_class_free(txc->klass);
 
 	/* Free preallocated */
-	list_for_each_entry_rcu(rl, &txc->prealloc_rl_list, prealloc_list) {
+	list_for_each_entry_safe(rl, temprl, &txc->prealloc_rl_list, prealloc_list) {
 		list_del_rcu(&rl->prealloc_list);
-		/* XXX: Actually, we shouldn't do this; we have to "call_rcu" */
 		iso_rl_free(rl);
 	}
 
-	list_for_each_entry_rcu(state, &txc->prealloc_state_list, prealloc_list) {
+	list_for_each_entry_safe(state, tempstate, &txc->prealloc_state_list, prealloc_list) {
 		list_del_rcu(&state->prealloc_list);
-		/* XXX: Actually, we shouldn't do this; we have to "call_rcu" */
 		iso_state_free(state);
 	}
 

@@ -39,10 +39,9 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 	struct hlist_head *head;
 	struct hlist_node *node;
 	struct iso_tx_class *txc;
-	struct iso_vq *vq;
+	struct iso_vq *vq, *vq_next;
 
 	int i;
-	rcu_read_lock();
 
 	seq_printf(s, "iso_param_dev %s\n", iso_param_dev);
 
@@ -59,7 +58,7 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 	for_each_vq(vq) {
 		iso_vq_show(vq, s);
 	}
-	rcu_read_unlock();
+
 	return 0;
 }
 
