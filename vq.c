@@ -5,7 +5,7 @@ s64 vq_total_tokens;
 ktime_t vq_last_update_time;
 spinlock_t vq_spinlock;
 struct list_head vq_list;
-static struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
+struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
 
 void iso_vqs_init() {
 	int i;
@@ -105,10 +105,6 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	stats->rx_bytes += len;
 }
 
-inline int iso_vq_active(struct iso_vq *vq) {
-	return vq->backlog > 0;
-}
-
 /* Should be called once in a while */
 void iso_vq_tick(u64 dt) {
 	u64 diff_tokens = (ISO_VQ_DRAIN_RATE_MBPS * dt) >> 3;
@@ -157,25 +153,6 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 
 	vq_total_tokens -= can_drain;
 	vq_total_tokens = max(vq_total_tokens, 0LL);
-}
-
-inline int iso_vq_over_limits(struct iso_vq *vq) {
-	return vq->backlog > ISO_VQ_MARK_THRESH_BYTES;
-}
-
-/* Called with rcu lock */
-inline struct iso_vq *iso_vq_find(iso_class_t klass) {
-	u32 hash = iso_class_hash(klass);
-	struct hlist_head *head = &vq_bucket[hash & (ISO_MAX_VQ_BUCKETS - 1)];
-	struct hlist_node *node;
-	struct iso_vq *vq;
-
-	hlist_for_each_entry_rcu(vq, node, head, hash_node) {
-		if(iso_class_cmp(vq->klass, klass) == 0)
-			return vq;
-	}
-
-	return NULL;
 }
 
 void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {

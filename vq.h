@@ -17,6 +17,10 @@
 #include <asm/atomic.h>
 #include <linux/spinlock.h>
 
+#ifndef __VQ_H__
+#define __VQ_H__
+
+
 #include "params.h"
 #include "tx.h"
 
@@ -65,13 +69,43 @@ int iso_vq_init(struct iso_vq *);
 struct iso_vq *iso_vq_alloc(iso_class_t);
 void iso_vq_free(struct iso_vq *);
 void iso_vq_enqueue(struct iso_vq *, struct sk_buff *);
-inline int iso_vq_active(struct iso_vq *);
+static inline int iso_vq_active(struct iso_vq *);
 void iso_vq_tick(u64);
 void iso_vq_drain(struct iso_vq *, u64);
-inline int iso_vq_over_limits(struct iso_vq *);
+static inline int iso_vq_over_limits(struct iso_vq *);
 
-inline struct iso_vq *iso_vq_find(iso_class_t);
+static inline struct iso_vq *iso_vq_find(iso_class_t);
 void iso_vq_show(struct iso_vq *, struct seq_file *);
+
+
+extern struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
+
+/* Called with rcu lock */
+static inline struct iso_vq *iso_vq_find(iso_class_t klass) {
+	u32 hash = iso_class_hash(klass);
+	struct hlist_head *head = &vq_bucket[hash & (ISO_MAX_VQ_BUCKETS - 1)];
+	struct hlist_node *node;
+	struct iso_vq *vq;
+
+	hlist_for_each_entry_rcu(vq, node, head, hash_node) {
+		if(iso_class_cmp(vq->klass, klass) == 0)
+			return vq;
+	}
+
+	return NULL;
+}
+
+
+static inline int iso_vq_over_limits(struct iso_vq *vq) {
+	return vq->backlog > ISO_VQ_MARK_THRESH_BYTES;
+}
+
+static inline int iso_vq_active(struct iso_vq *vq) {
+	return vq->backlog > 0;
+}
+
+
+#endif /* __VQ_H__ */
 
 /* Local Variables: */
 /* indent-tabs-mode:t */

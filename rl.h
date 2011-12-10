@@ -60,14 +60,14 @@ struct iso_rl {
 void iso_rl_init(struct iso_rl *);
 void iso_rl_free(struct iso_rl *);
 void iso_rl_show(struct iso_rl *, struct seq_file *);
-inline int iso_rl_should_refill(struct iso_rl *);
+static inline int iso_rl_should_refill(struct iso_rl *);
 void iso_rl_clock(struct iso_rl *);
 enum iso_verdict iso_rl_enqueue(struct iso_rl *, struct sk_buff *, int cpu);
 void iso_rl_dequeue(unsigned long _q);
 enum hrtimer_restart iso_rl_timeout(struct hrtimer *);
 int iso_rl_borrow_tokens(struct iso_rl *, struct iso_rl_queue *);
-inline ktime_t iso_rl_gettimeout(void);
-inline u64 iso_rl_singleq_burst(struct iso_rl *);
+static inline ktime_t iso_rl_gettimeout(void);
+static inline u64 iso_rl_singleq_burst(struct iso_rl *);
 
 inline void skb_xmit(struct sk_buff *skb);
 
@@ -102,6 +102,22 @@ static inline int skb_has_feedback(struct sk_buff *skb) {
 
 	iph = ip_hdr(skb);
 	return iph->tos & ISO_ECN_REFLECT_MASK;
+}
+
+static inline ktime_t iso_rl_gettimeout() {
+	return ktime_set(0, ISO_TOKENBUCKET_TIMEOUT_NS);
+}
+
+
+static inline u64 iso_rl_singleq_burst(struct iso_rl *rl) {
+	return ((rl->rate * ISO_MAX_BURST_TIME_US) >> 3) / ISO_BURST_FACTOR;
+}
+
+static inline int iso_rl_should_refill(struct iso_rl *rl) {
+	ktime_t now = ktime_get();
+	if(ktime_us_delta(now, rl->last_update_time) > ISO_RL_UPDATE_INTERVAL_US)
+		return 1;
+	return 0;
 }
 
 #endif /* __RL_H__ */

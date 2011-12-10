@@ -8,26 +8,9 @@
 #include "rl.h"
 #include "rc.h"
 
-/*
- * Classification can be based on skb->dev, src hwaddr, ip, tcp, etc.
- * It is your job to ensure that exactly ONE of the #defines are
- * defined.
- */
-// #define ISO_TX_CLASS_ETHER_SRC
-// #define ISO_TX_CLASS_DEV
-// #define ISO_TX_CLASS_MARK
-
 struct seq_file;
 
-#if defined ISO_TX_CLASS_DEV
-typedef struct net_device *iso_class_t;
-#elif defined ISO_TX_CLASS_ETHER_SRC
-typedef struct {
-	u8 addr[ETH_ALEN];
-}iso_class_t;
-#elif defined ISO_TX_CLASS_MARK
-typedef u32 iso_class_t;
-#endif
+#include "class.h"
 
 /* Per-dest state */
 struct iso_per_dest_state {
@@ -84,18 +67,32 @@ int iso_txc_install(char *klass);
 void iso_txc_prealloc(struct iso_tx_class *, int);
 void iso_txc_allocator(struct work_struct *);
 
-inline iso_class_t iso_txc_classify(struct sk_buff *);
-inline void iso_class_free(iso_class_t);
-inline int iso_class_cmp(iso_class_t a, iso_class_t b);
-inline u32 iso_class_hash(iso_class_t);
-inline void iso_class_show(iso_class_t, char *);
-inline iso_class_t iso_class_parse(char*);
-inline struct iso_tx_class *iso_txc_find(iso_class_t);
-
 void iso_state_init(struct iso_per_dest_state *);
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *, int rx);
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32);
 void iso_state_free(struct iso_per_dest_state *);
+
+static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
+	return &iso_tx_bucket[iso_class_hash(klass) & (ISO_MAX_TX_BUCKETS - 1)];
+}
+
+static inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
+	struct hlist_head *head = iso_txc_find_bucket(klass);
+	struct iso_tx_class *txc;
+	struct iso_tx_class *found = NULL;
+	struct hlist_node *n;
+
+	rcu_read_lock();
+	hlist_for_each_entry_rcu(txc, n, head, hash_node) {
+		if(iso_class_cmp(txc->klass, klass) == 0) {
+			found = txc;
+			break;
+		}
+	}
+	rcu_read_unlock();
+
+	return found;
+}
 
 #endif /* __TX_H__ */
 

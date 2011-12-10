@@ -65,13 +65,6 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 	}
 }
 
-inline int iso_rl_should_refill(struct iso_rl *rl) {
-	ktime_t now = ktime_get();
-	if(ktime_us_delta(now, rl->last_update_time) > ISO_RL_UPDATE_INTERVAL_US)
-		return 1;
-	return 0;
-}
-
 /* This function could be called from HARDIRQ context */
 void iso_rl_clock(struct iso_rl *rl) {
 	unsigned long flags;
@@ -123,10 +116,6 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
  done:
 	spin_unlock(&q->spinlock);
 	return verdict;
-}
-
-inline ktime_t iso_rl_gettimeout() {
-	return ktime_set(0, ISO_TOKENBUCKET_TIMEOUT_NS);
 }
 
 /* This function MUST be executed with interrupts enabled */
@@ -198,10 +187,6 @@ enum hrtimer_restart iso_rl_timeout(struct hrtimer *timer) {
 	iso_rl_clock(q->rl);
 	tasklet_schedule(&q->xmit_timeout);
 	return HRTIMER_NORESTART;
-}
-
-inline u64 iso_rl_singleq_burst(struct iso_rl *rl) {
-	return ((rl->rate * ISO_MAX_BURST_TIME_US) >> 3) / ISO_BURST_FACTOR;
 }
 
 int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {

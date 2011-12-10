@@ -253,10 +253,6 @@ void iso_txc_allocator(struct work_struct *work) {
 	iso_txc_prealloc(txc, 256);
 }
 
-static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
-	return &iso_tx_bucket[iso_class_hash(klass) & (ISO_MAX_TX_BUCKETS - 1)];
-}
-
 /* Can sleep */
 struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 	struct iso_tx_class *txc;
@@ -372,123 +368,6 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	}
 
 	kfree(txc);
-}
-
-/* First attempt: out device classification.  Its address is usually
-   aligned, so shift out the zeroes */
-
-#if defined ISO_TX_CLASS_DEV
-inline iso_class_t iso_txc_classify(struct sk_buff *pkt) {
-	return pkt->dev;
-}
-
-inline void iso_class_free(iso_class_t klass) {
-	dev_put((struct net_device *)klass);
-}
-
-inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
-	return (u64)a - (u64)b;
-}
-
-inline u32 iso_class_hash(iso_class_t klass) {
-	return (u32) ((u64)klass >> 12);
-}
-
-inline void iso_class_show(iso_class_t klass, char *buff) {
-	sprintf(buff, "%p", klass);
-}
-
-/* XXX: should this routine do "dev_put" as well?  Maybe it should, as
- *  we will not be dereferencing iso_class_t anyway?
- */
-
-inline iso_class_t iso_class_parse(char *devname) {
-	struct net_device *dev;
-
-	rcu_read_lock();
-	dev = dev_get_by_name_rcu(&init_net, devname);
-	rcu_read_unlock();
-
-	dev_put(dev);
-	return dev;
-}
-#elif defined ISO_TX_CLASS_ETHER_SRC
-inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
-	iso_class_t ret;
-	memcpy((unsigned char *)&ret, eth_hdr(skb)->h_source, ETH_ALEN);
-	return ret;
-}
-
-inline void iso_class_free(iso_class_t klass) {}
-
-inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
-	return memcmp(&a, &b, sizeof(a));
-}
-
-inline u32 iso_class_hash(iso_class_t klass) {
-	return jhash((void *)&klass, sizeof(iso_class_t), 0);
-}
-
-/* Just lazy, looks weird */
-inline void iso_class_show(iso_class_t klass, char *buff) {
-#define O "%02x:"
-#define OO "%02x"
-	u8 *o = &klass.addr[0];
-	sprintf(buff, O O O O O OO,
-			o[0], o[1], o[2], o[3], o[4], o[5]);
-#undef O
-#undef OO
-}
-
-inline iso_class_t iso_class_parse(char *hwaddr) {
-	iso_class_t ret = {.addr = {0}};
-	mac_pton(hwaddr, (u8*)&ret);
-	return ret;
-}
-#elif defined ISO_TX_CLASS_MARK
-inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
-	return skb->mark;
-}
-
-inline void iso_class_free(iso_class_t klass) {}
-
-inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
-	return a - b;
-}
-
-/* We don't do any bit mixing here; it's for ease of use */
-inline u32 iso_class_hash(iso_class_t klass) {
-	return klass;
-}
-
-/* Just lazy, looks weird */
-inline void iso_class_show(iso_class_t klass, char *buff) {
-	sprintf(buff, "%d", klass);
-}
-
-inline iso_class_t iso_class_parse(char *hwaddr) {
-	int ret = 0;
-	sscanf(hwaddr, "%d", &ret);
-	return ret;
-}
-#endif
-
-inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
-	struct hlist_head *head = iso_txc_find_bucket(klass);
-	struct iso_tx_class *txc;
-	struct iso_tx_class *found = NULL;
-	struct hlist_node *n;
-
-	rcu_read_lock();
-	hlist_for_each_entry_rcu(txc, n, head, hash_node) {
-		if(iso_class_cmp(txc->klass, klass) == 0) {
-			found = txc;
-			break;
-		}
-	}
-	rcu_read_unlock();
-
-	return found;
 }
 
 #if defined ISO_TX_CLASS_DEV

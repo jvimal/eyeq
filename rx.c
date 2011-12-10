@@ -4,9 +4,6 @@
 #include "rx.h"
 #include "vq.h"
 
-extern char *iso_param_dev;
-extern struct net_device *iso_netdev;
-
 int iso_rx_bridge_init(void);
 void iso_rx_bridge_exit(void);
 
@@ -76,19 +73,6 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	return verdict;
 }
 
-inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
-	/* Classify just like TX context would have */
-	iso_class_t klass;
-#if defined ISO_TX_CLASS_DEV
-	klass = skb->dev;
-#elif defined ISO_TX_CLASS_ETHER_SRC
-	memcpy((void *)&klass, eth_hdr(skb)->h_dest, ETH_ALEN);
-#elif defined ISO_TX_CLASS_MARK
-	klass = skb->mark;
-#endif
-	return klass;
-}
-
 int iso_vq_install(char *_klass) {
 	iso_class_t klass;
 	struct iso_vq *vq;
@@ -113,72 +97,6 @@ int iso_vq_install(char *_klass) {
  err:
 	rcu_read_unlock();
 	return ret;
-}
-
-/* Create a feebdack packet and prepare for transmission.  Returns 1 if successful. */
-inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
-	struct sk_buff *skb;
-	struct ethhdr *eth_to, *eth_from;
-	struct iphdr *iph_to, *iph_from;
-
-	eth_from = eth_hdr(pkt);
-	if(unlikely(eth_from->h_proto != htons(ETH_P_IP)))
-		return 0;
-
-	/* XXX: netdev_alloc_skb's meant to allocate packets for receiving.
-	 * Is it okay to use for transmitting?
-	 */
-	skb = netdev_alloc_skb(iso_netdev, ISO_FEEDBACK_PACKET_SIZE);
-	if(likely(skb)) {
-		skb->len = ISO_FEEDBACK_PACKET_SIZE;
-		skb->protocol = htons(ETH_P_IP);
-		skb->pkt_type = PACKET_OUTGOING;
-
-		skb_reset_mac_header(skb);
-		skb_set_tail_pointer(skb, ISO_FEEDBACK_PACKET_SIZE);
-		eth_to = eth_hdr(skb);
-
-		memcpy(eth_to->h_source, eth_from->h_dest, ETH_ALEN);
-		memcpy(eth_to->h_dest, eth_from->h_source, ETH_ALEN);
-		eth_to->h_proto = eth_from->h_proto;
-
-		skb_pull(skb, ETH_HLEN);
-		skb_reset_network_header(skb);
-		iph_to = ip_hdr(skb);
-		iph_from = ip_hdr(pkt);
-
-		iph_to->ihl = 5;
-		iph_to->version = 4;
-		iph_to->tos = 0x2 | (bit ? ISO_ECN_REFLECT_MASK : 0);
-		iph_to->tot_len = htons(ISO_FEEDBACK_HEADER_SIZE - 14);
-		iph_to->id = iph_from->id;
-		iph_to->frag_off = 0;
-		iph_to->ttl = ISO_FEEDBACK_PACKET_TTL;
-		iph_to->protocol = (u8)ISO_FEEDBACK_PACKET_IPPROTO;
-		iph_to->saddr = iph_from->daddr;
-		iph_to->daddr = iph_from->saddr;
-
-		/* NB: this function doesn't "send" the packet */
-		ip_send_check(iph_to);
-
-		/* Driver owns the buffer now; we don't need to free it */
-		skb_xmit(skb);
-		return 1;
-	}
-
-	return 0;
-}
-
-inline int iso_is_generated_feedback(struct sk_buff *skb) {
-	struct ethhdr *eth;
-	struct iphdr *iph;
-	eth = eth_hdr(skb);
-	if(likely(eth->h_proto == htons(ETH_P_IP))) {
-		iph = ip_hdr(skb);
-		if(unlikely(iph->protocol == ISO_FEEDBACK_PACKET_IPPROTO))
-			return 1;
-	}
-	return 0;
 }
 
 /* Local Variables: */

@@ -25,7 +25,7 @@ struct iso_rc_state {
 };
 
 
-inline void iso_rc_init(struct iso_rc_state *);
+void iso_rc_init(struct iso_rc_state *);
 inline int iso_rc_tx(struct iso_rc_state *, struct sk_buff *);
 inline int iso_rc_rx(struct iso_rc_state *, struct sk_buff *);
 

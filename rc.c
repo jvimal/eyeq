@@ -1,7 +1,7 @@
 
 #include "rc.h"
 
-inline void iso_rc_init(struct iso_rc_state *rc) {
+void iso_rc_init(struct iso_rc_state *rc) {
 	int i;
 	rc->rfair = ISO_RFAIR_INITIAL;
 	rc->alpha = 0;
