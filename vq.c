@@ -112,7 +112,7 @@ inline int iso_vq_active(struct iso_vq *vq) {
 /* Should be called once in a while */
 void iso_vq_tick(u64 dt) {
 	u64 diff_tokens = (ISO_VQ_DRAIN_RATE_MBPS * dt) >> 3;
-	u64 active_weight = 0;
+	u64 active_weight = 0, total_weight = 0;
 	struct iso_vq *vq, *vq_next;
 
 	vq_total_tokens += diff_tokens;
@@ -121,6 +121,7 @@ void iso_vq_tick(u64 dt) {
 
 	for_each_vq(vq) {
 		iso_vq_drain(vq, dt);
+		total_weight += vq->weight;
 		if(iso_vq_active(vq))
 			active_weight += vq->weight;
 	}
@@ -129,6 +130,8 @@ void iso_vq_tick(u64 dt) {
 	for_each_vq(vq) {
 		if(iso_vq_active(vq) && active_weight > 0) {
 			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / active_weight;
+		} else {
+			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / total_weight;
 		}
 	}
 }
