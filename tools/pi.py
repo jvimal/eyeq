@@ -45,6 +45,11 @@ parser.add_argument('--get-rps',
                     help="Get the RPS configuration for the device.",
                     default=None)
 
+parser.add_argument('--dev',
+                    dest="dev",
+                    help="Device to load/save RPS configuration.",
+                    default=None)
+
 parser.add_argument('--set-rps',
                     dest="set_rps",
                     help="Sets the RPS configuration for the device.",

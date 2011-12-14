@@ -162,28 +162,50 @@ def set(args):
 
 def get_rps(args):
     dev = args.get_rps
+    if dev is None:
+        dev = args.dev
+    ret = []
     for queue in glob.glob("/sys/class/net/%s/queues/rx*" % dev):
         config = open(os.path.join(queue, "rps_cpus"), "r").read().strip()
-        print os.path.basename(queue), config
+        ret.append((os.path.basename(queue), config))
+    print '\n'.join(map(lambda e: "%s: %s" % e, ret))
+    return ret
 
 def set_rps(args):
     try:
-        dev, q, value = args.set_rps.split(',')
+        dev, q, value = args.set_rps.split(':')
     except:
-        print "set_rps expects 3 arguments: --set-rps dev,qnum,cpumask"
+        print "set_rps expects 3 arguments: --set-rps dev:qnum:cpumask"
         return
-    file = "/sys/class/net/%s/queues/rx-%s/rps_cpus" % (dev, q)
+    if 'rx' not in q:
+        q = "rx-%s" % q
+    file = "/sys/class/net/%s/queues/%s/rps_cpus" % (dev, q)
     try:
         open(file, 'w').write(value)
     except:
         print "Cannot find device %s/queue %s (path %s)" % (dev, q, file)
     print file, open(file, 'r').read().strip()
 
+def save_rps(args, config):
+    if not config.has_section("rps"):
+        config.add_section("rps")
+    for rxq, value in get_rps(args):
+        config.set("rps", rxq, value)
+
+def load_rps(args, config):
+    if not config.has_section("rps"):
+        return
+    dev = args.dev
+    for rxq, value in config.items("rps"):
+        args.set_rps = ':'.join([dev, rxq, value])
+        set_rps(args)
+
 def save(args):
     where = open(args.save, 'w')
     params.save(config)
     txc.save(config)
     vqs.save(config)
+    save_rps(args, config)
     config.write(where)
 
 def load_config(args):
@@ -191,6 +213,7 @@ def load_config(args):
     config.optionxform = str
     config.read(args.load)
     params.load(config)
+    load_rps(args, config)
     vqs.load(config)
     txc.load(config)
 
