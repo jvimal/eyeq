@@ -160,6 +160,25 @@ def set(args):
     except Exception, e:
         die("error setting %s to %s" % (args.set, args.value))
 
+def get_rps(args):
+    dev = args.get_rps
+    for queue in glob.glob("/sys/class/net/%s/queues/rx*" % dev):
+        config = open(os.path.join(queue, "rps_cpus"), "r").read().strip()
+        print os.path.basename(queue), config
+
+def set_rps(args):
+    try:
+        dev, q, value = args.set_rps.split(',')
+    except:
+        print "set_rps expects 3 arguments: --set-rps dev,qnum,cpumask"
+        return
+    file = "/sys/class/net/%s/queues/rx-%s/rps_cpus" % (dev, q)
+    try:
+        open(file, 'w').write(value)
+    except:
+        print "Cannot find device %s/queue %s (path %s)" % (dev, q, file)
+    print file, open(file, 'r').read().strip()
+
 def save(args):
     where = open(args.save, 'w')
     params.save(config)

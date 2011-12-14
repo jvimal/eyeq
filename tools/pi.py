@@ -40,6 +40,16 @@ parser.add_argument("--module", "-m",
                     help="Path to perfiso module.",
                     default="./perfiso.ko iso_param_dev=eth2")
 
+parser.add_argument('--get-rps',
+                    dest="get_rps",
+                    help="Get the RPS configuration for the device.",
+                    default=None)
+
+parser.add_argument('--set-rps',
+                    dest="set_rps",
+                    help="Sets the RPS configuration for the device.",
+                    default=None)
+
 args = parser.parse_args()
 
 if args.get:
@@ -52,5 +62,9 @@ elif args.load:
     perfiso.clear()
     perfiso.load_module(args)
     perfiso.load_config(args)
+elif args.get_rps:
+    perfiso.get_rps(args)
+elif args.set_rps:
+    perfiso.set_rps(args)
 else:
     parser.print_help()
