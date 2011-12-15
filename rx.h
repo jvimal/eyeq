@@ -19,19 +19,6 @@ static inline int iso_is_generated_feedback(struct sk_buff *);
 extern char *iso_param_dev;
 extern struct net_device *iso_netdev;
 
-static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
-	/* Classify just like TX context would have */
-	iso_class_t klass;
-#if defined ISO_TX_CLASS_DEV
-	klass = skb->dev;
-#elif defined ISO_TX_CLASS_ETHER_SRC
-	memcpy((void *)&klass, eth_hdr(skb)->h_dest, ETH_ALEN);
-#elif defined ISO_TX_CLASS_MARK
-	klass = skb->mark;
-#endif
-	return klass;
-}
-
 /* Create a feebdack packet and prepare for transmission.  Returns 1 if successful. */
 static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 	struct sk_buff *skb;

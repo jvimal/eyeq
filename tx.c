@@ -436,7 +436,7 @@ int iso_txc_ether_src_install(char *hwaddr) {
  end:
 	return ret;
 }
-#elif defined ISO_TX_CLASS_MARK
+#elif defined (ISO_TX_CLASS_MARK) || defined (ISO_TX_CLASS_IPADDR)
 int iso_txc_mark_install(char *mark) {
 	iso_class_t m = iso_class_parse(mark);
 	struct iso_tx_class *txc;
@@ -466,7 +466,7 @@ int iso_txc_install(char *klass) {
 	ret = iso_txc_dev_install(klass);
 #elif defined ISO_TX_CLASS_ETHER_SRC
 	ret = iso_txc_ether_src_install(klass);
-#elif defined ISO_TX_CLASS_MARK
+#elif defined (ISO_TX_CLASS_MARK) || defined (ISO_TX_CLASS_IPADDR)
 	ret = iso_txc_mark_install(klass);
 #endif
 	return ret;

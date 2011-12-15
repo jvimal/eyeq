@@ -21,6 +21,8 @@ typedef struct {
 }iso_class_t;
 #elif defined ISO_TX_CLASS_MARK
 typedef u32 iso_class_t;
+#elif defined ISO_TX_CLASS_IPADDR
+typedef u32 iso_class_t;
 #endif
 
 /* Maybe we need an "ops" structure */
@@ -71,6 +73,10 @@ static inline iso_class_t iso_class_parse(char *devname) {
 	dev_put(dev);
 	return dev;
 }
+
+static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
+	return skb->dev;
+}
 #elif defined ISO_TX_CLASS_ETHER_SRC
 static inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
 	iso_class_t ret;
@@ -104,6 +110,13 @@ static inline iso_class_t iso_class_parse(char *hwaddr) {
 	mac_pton(hwaddr, (u8*)&ret);
 	return ret;
 }
+
+static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
+	iso_class_t klass;
+	memcpy((void *)&klass, eth_hdr(skb)->h_dest, ETH_ALEN);
+	return klass;
+}
+
 #elif defined ISO_TX_CLASS_MARK
 static inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
 	return skb->mark;
@@ -130,7 +143,65 @@ static inline iso_class_t iso_class_parse(char *hwaddr) {
 	sscanf(hwaddr, "%d", &ret);
 	return ret;
 }
+
+static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
+	return skb->mark;
+}
+
+#elif defined ISO_TX_CLASS_IPADDR
+static inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
+	struct ethhdr *eth;
+	u32 addr = 0;
+
+	eth = eth_hdr(skb);
+	if(likely(eth->h_proto == htons(ETH_P_IP))) {
+		addr = ip_hdr(skb)->saddr;
+	}
+
+	return addr;
+}
+
+static inline void iso_class_free(iso_class_t klass) {}
+
+static inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
+	return a - b;
+}
+
+/* We don't do any bit mixing here; it's for ease of use */
+static inline u32 iso_class_hash(iso_class_t klass) {
+	return klass;
+}
+
+/* Just lazy, looks weird */
+static inline void iso_class_show(iso_class_t klass, char *buff) {
+	sprintf(buff, "%x", htonl(klass));
+}
+
+static inline iso_class_t iso_class_parse(char *ipaddr) {
+	u32 addr, oct[4];
+	int n;
+
+	addr = 0;
+	n = sscanf(ipaddr, "%u.%u.%u.%u", oct, oct+1, oct+2, oct+3);
+	if(n == 4) {
+		addr = (oct[0] << 24) | (oct[1] << 16) | (oct[2] << 8) | oct[3];
+	}
+	return addr;
+}
+
+static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
+	iso_class_t klass = 0;
+	struct ethhdr *eth = NULL;
+	klass = 0;
+	eth = eth_hdr(skb);
+	if(likely(eth->h_proto == htons(ETH_P_IP))) {
+		klass = ip_hdr(skb)->saddr;
+	}
+	return klass;
+}
+
 #endif
+
 
 
 #endif /* __CLASS_H__ */
