@@ -195,7 +195,7 @@ static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
 	klass = 0;
 	eth = eth_hdr(skb);
 	if(likely(eth->h_proto == htons(ETH_P_IP))) {
-		klass = ip_hdr(skb)->saddr;
+		klass = ip_hdr(skb)->daddr;
 	}
 	return klass;
 }
