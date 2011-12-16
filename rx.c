@@ -83,7 +83,7 @@ int iso_vq_install(char *_klass) {
 	vq = iso_vq_find(klass);
 	if(vq != NULL) {
 		ret = -1;
-		printk(KERN_INFO "perfiso: class %s not found\n", _klass);
+		printk(KERN_INFO "perfiso: class %s exists\n", _klass);
 		goto err;
 	}
 
