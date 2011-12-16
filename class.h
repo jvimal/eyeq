@@ -172,9 +172,13 @@ static inline u32 iso_class_hash(iso_class_t klass) {
 	return klass;
 }
 
-/* Just lazy, looks weird */
 static inline void iso_class_show(iso_class_t klass, char *buff) {
-	sprintf(buff, "%x", htonl(klass));
+	u32 addr = htonl(klass);
+	sprintf(buff, "%u.%u.%u.%u",
+			(addr & 0xFF000000) >> 24,
+			(addr & 0x00FF0000) >> 16,
+			(addr & 0x0000FF00) >> 8,
+			(addr & 0x000000FF));
 }
 
 static inline iso_class_t iso_class_parse(char *ipaddr) {
