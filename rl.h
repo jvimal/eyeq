@@ -114,7 +114,13 @@ static inline u64 iso_rl_singleq_burst(struct iso_rl *rl) {
 }
 
 static inline int iso_rl_should_refill(struct iso_rl *rl) {
-	if(likely(rl->total_tokens > iso_rl_singleq_burst(rl)))
+	u64 borrow;
+	struct iso_rl_queue *q;
+
+	q = per_cpu_ptr(rl->queue, smp_processor_id());
+	borrow = max(iso_rl_singleq_burst(rl), (u64)q->first_pkt_size);
+
+	if(likely(rl->total_tokens > borrow))
 		return 0;
 	return 1;
 }
