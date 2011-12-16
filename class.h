@@ -186,7 +186,7 @@ static inline iso_class_t iso_class_parse(char *ipaddr) {
 	if(n == 4) {
 		addr = (oct[0] << 24) | (oct[1] << 16) | (oct[2] << 8) | oct[3];
 	}
-	return addr;
+	return htonl(addr);
 }
 
 static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
