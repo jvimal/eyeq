@@ -114,15 +114,10 @@ static inline u64 iso_rl_singleq_burst(struct iso_rl *rl) {
 }
 
 static inline int iso_rl_should_refill(struct iso_rl *rl) {
-	u64 borrow;
-	struct iso_rl_queue *q;
-
-	q = per_cpu_ptr(rl->queue, smp_processor_id());
-	borrow = max(iso_rl_singleq_burst(rl), (u64)q->first_pkt_size);
-
-	if(likely(rl->total_tokens > borrow))
-		return 0;
-	return 1;
+	ktime_t now = ktime_get();
+	if(ktime_us_delta(now, rl->last_update_time) > ISO_RL_UPDATE_INTERVAL_US)
+		return 1;
+	return 0;
 }
 
 #endif /* __RL_H__ */
