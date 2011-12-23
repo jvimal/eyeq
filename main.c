@@ -24,6 +24,9 @@ struct net_device *iso_netdev;
 static int iso_init(void);
 static void iso_exit(void);
 
+void iso_rx_bridge_exit(void);
+void iso_tx_bridge_exit(void);
+
 static int iso_init() {
 	int i, ret = -1;
 
@@ -74,6 +77,9 @@ static int iso_init() {
 }
 
 static void iso_exit() {
+	iso_tx_bridge_exit();
+	iso_rx_bridge_exit();
+
 	iso_stats_exit();
 	iso_tx_exit();
 	iso_rx_exit();

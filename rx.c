@@ -14,7 +14,6 @@ int iso_rx_init() {
 }
 
 void iso_rx_exit() {
-	iso_rx_bridge_exit();
 	iso_vqs_exit();
 }
 

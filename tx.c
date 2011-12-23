@@ -23,8 +23,6 @@ void iso_tx_exit() {
 	struct hlist_node *node, *nextnode;
 	struct iso_tx_class *txc;
 
-	iso_tx_bridge_exit();
-
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &iso_tx_bucket[i];
 		hlist_for_each_entry_safe(txc, nextnode, node, head, hash_node) {
