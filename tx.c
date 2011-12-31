@@ -8,13 +8,12 @@ extern char *iso_param_dev;
 extern struct net_device *iso_netdev;
 struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
 
-int iso_tx_bridge_init(void);
-void iso_tx_bridge_exit(void);
+int iso_tx_hook_init(void);
 
 int iso_tx_init() {
 	printk(KERN_INFO "perfiso: Init TX path\n");
 
-	return iso_tx_bridge_init();
+	return iso_tx_hook_init();
 }
 
 void iso_tx_exit() {

@@ -18,11 +18,11 @@ unsigned int iso_tx_bridge(unsigned int hooknum,
 			const struct net_device *out,
 			int (*okfn)(struct sk_buff *));
 
-int iso_tx_bridge_init(void);
-void iso_tx_bridge_exit(void);
+int iso_tx_hook_init(void);
+void iso_tx_hook_exit(void);
 
-int iso_rx_bridge_init(void);
-void iso_rx_bridge_exit(void);
+int iso_rx_hook_init(void);
+void iso_rx_hook_exit(void);
 
 
 enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out);
@@ -34,7 +34,7 @@ inline void skb_xmit(struct sk_buff *skb) {
     dev_queue_xmit(skb);
 }
 
-int iso_tx_bridge_init() {
+int iso_tx_hook_init() {
 	hook_out.hook = iso_tx_bridge;
 	hook_out.hooknum= NF_BR_POST_ROUTING;
 	hook_out.pf = PF_BRIDGE;
@@ -43,7 +43,7 @@ int iso_tx_bridge_init() {
     return nf_register_hook(&hook_out);
 }
 
-int iso_rx_bridge_init() {
+int iso_rx_hook_init() {
 	hook_in.hook = iso_rx_bridge;
 	hook_in.hooknum= NF_BR_PRE_ROUTING;
 	hook_in.pf = PF_BRIDGE;
@@ -52,11 +52,11 @@ int iso_rx_bridge_init() {
     return nf_register_hook(&hook_in);
 }
 
-void iso_tx_bridge_exit() {
+void iso_tx_hook_exit() {
 	nf_unregister_hook(&hook_out);
 }
 
-void iso_rx_bridge_exit() {
+void iso_rx_hook_exit() {
 	nf_unregister_hook(&hook_in);
 }
 

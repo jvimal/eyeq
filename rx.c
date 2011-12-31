@@ -4,13 +4,12 @@
 #include "rx.h"
 #include "vq.h"
 
-int iso_rx_bridge_init(void);
-void iso_rx_bridge_exit(void);
+int iso_rx_hook_init(void);
 
 int iso_rx_init() {
 	printk(KERN_INFO "perfiso: Init RX path\n");
 	iso_vqs_init();
-	return iso_rx_bridge_init();
+	return iso_rx_hook_init();
 }
 
 void iso_rx_exit() {
