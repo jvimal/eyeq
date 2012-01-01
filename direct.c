@@ -18,9 +18,28 @@ void iso_rx_hook_exit(void);
 enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out);
 enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in);
 
+/* Called with bh disabled */
 inline void skb_xmit(struct sk_buff *skb) {
+	struct netdev_queue *txq;
+	int cpu;
+	int locked = 0;
+
 	if(likely(old_ndo_start_xmit != NULL)) {
-		old_ndo_start_xmit(skb, iso_netdev);
+		cpu = smp_processor_id();
+		txq = netdev_get_tx_queue(iso_netdev, skb_get_queue_mapping(skb));
+
+		/* Protect the transmit, which needs to be done ONLY we're deferred */
+		if(txq->xmit_lock_owner != cpu) {
+			HARD_TX_LOCK(iso_netdev, txq, cpu);
+			locked = 1;
+		}
+
+		if(!netif_tx_queue_stopped(txq))
+			old_ndo_start_xmit(skb, iso_netdev);
+
+		if(locked) {
+			HARD_TX_UNLOCK(iso_netdev, txq);
+		}
 	}
 }
 
@@ -69,30 +88,33 @@ void iso_rx_hook_exit() {
 	synchronize_net();
 }
 
+/* Called with bh disabled */
 netdev_tx_t iso_ndo_start_xmit(struct sk_buff *skb, struct net_device *out) {
 	enum iso_verdict verdict;
+	struct netdev_queue *txq;
+	int cpu = smp_processor_id();
+
+	txq = netdev_get_tx_queue(iso_netdev, skb_get_queue_mapping(skb));
+	HARD_TX_UNLOCK(iso_netdev, txq);
 
 	skb_reset_mac_header(skb);
 	verdict = iso_tx(skb, out);
 
 	switch(verdict) {
 	case ISO_VERDICT_DROP:
-		/* XXX: Should we return NETDEV_TX_BUSY or NETDEV_TX_OK ? */
-		/* NB: freeing the buffer seems to introduce some problems, so
-		   choosing TX_BUSY. */
-		/* kfree_skb(skb); */
-		return NETDEV_TX_BUSY;
+		kfree_skb(skb);
+		break;
 
 	case ISO_VERDICT_PASS:
 		skb_xmit(skb);
-		return NETDEV_TX_OK;
+		break;
 
 	case ISO_VERDICT_SUCCESS:
 	default:
-		return NETDEV_TX_OK;
+		break;
 	}
 
-	/* Unreachable */
+	HARD_TX_LOCK(iso_netdev, txq, cpu);
 	return NETDEV_TX_OK;
 }
 
