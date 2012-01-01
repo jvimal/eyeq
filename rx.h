@@ -34,6 +34,7 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 	 */
 	skb = netdev_alloc_skb(iso_netdev, ISO_FEEDBACK_PACKET_SIZE);
 	if(likely(skb)) {
+		skb_set_queue_mapping(skb, 0);
 		skb->len = ISO_FEEDBACK_PACKET_SIZE;
 		skb->protocol = htons(ETH_P_IP);
 		skb->pkt_type = PACKET_OUTGOING;
