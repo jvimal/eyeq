@@ -1,6 +1,10 @@
 #include <linux/netfilter_bridge.h>
 #include "rl.h"
 
+#ifndef BRIDGE
+#error "Compiling bridge.c without -DBRIDGE"
+#endif
+
 extern struct net_device *iso_netdev;
 struct nf_hook_ops hook_in;
 struct nf_hook_ops hook_out;

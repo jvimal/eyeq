@@ -66,6 +66,10 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 		/* NB: this function doesn't "send" the packet */
 		ip_send_check(iph_to);
 
+#ifdef DIRECT
+		skb_push(skb, ETH_HLEN);
+#endif
+
 		/* Driver owns the buffer now; we don't need to free it */
 		skb_xmit(skb);
 		return 1;

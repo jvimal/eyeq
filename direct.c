@@ -3,6 +3,10 @@
 #include <linux/rtnetlink.h>
 #include "rl.h"
 
+#ifndef DIRECT
+#error "Compiling direct.c without -DDIRECT"
+#endif
+
 extern struct net_device *iso_netdev;
 
 static netdev_tx_t (*old_ndo_start_xmit)(struct sk_buff *, struct net_device *);
