@@ -55,6 +55,8 @@ int iso_tx_hook_init() {
 	old_ndo_start_xmit = ops->ndo_start_xmit;
 	ops->ndo_start_xmit = iso_ndo_start_xmit;
 	rtnl_unlock();
+
+	synchronize_net();
 	return 0;
 }
 
@@ -64,6 +66,8 @@ void iso_tx_hook_exit() {
 	rtnl_lock();
 	ops->ndo_start_xmit = old_ndo_start_xmit;
 	rtnl_unlock();
+
+	synchronize_net();
 }
 
 int iso_rx_hook_init() {
