@@ -32,11 +32,11 @@ inline void skb_xmit(struct sk_buff *skb) {
 		cpu = smp_processor_id();
 		txq = netdev_get_tx_queue(iso_netdev, skb_get_queue_mapping(skb));
 
-		/* Protect the transmit, which needs to be done ONLY we're deferred */
 		if(txq->xmit_lock_owner != cpu) {
 			HARD_TX_LOCK(iso_netdev, txq, cpu);
 			locked = 1;
 		}
+		/* XXX: will the else condition happen? */
 
 		if(!netif_tx_queue_stopped(txq))
 			old_ndo_start_xmit(skb, iso_netdev);
