@@ -140,10 +140,10 @@ struct iso_per_dest_state
 
 	iph = ip_hdr(skb);
 
-	ip = ntohl(iph->daddr);
-	if(rx) ip = ntohl(iph->saddr);
+	ip = iph->daddr;
+	if(rx) ip = iph->saddr;
 
-	hash = ip & (ISO_MAX_STATE_BUCKETS - 1);
+	hash = jhash_1word(ip, 0xfacedead) & (ISO_MAX_STATE_BUCKETS - 1);
 	head = &txc->state_bucket[hash];
 
 	state = NULL;

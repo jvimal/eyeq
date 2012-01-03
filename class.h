@@ -169,7 +169,7 @@ static inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
 
 /* We don't do any bit mixing here; it's for ease of use */
 static inline u32 iso_class_hash(iso_class_t klass) {
-	return htonl(klass);
+	return jhash_1word(klass, 0xdeadbeef);
 }
 
 static inline void iso_class_show(iso_class_t klass, char *buff) {
