@@ -38,8 +38,11 @@ inline void skb_xmit(struct sk_buff *skb) {
 		}
 		/* XXX: will the else condition happen? */
 
-		if(!netif_tx_queue_stopped(txq))
+		if(!netif_tx_queue_stopped(txq)) {
 			old_ndo_start_xmit(skb, iso_netdev);
+		} else {
+			kfree_skb(skb);
+		}
 
 		if(locked) {
 			HARD_TX_UNLOCK(iso_netdev, txq);
