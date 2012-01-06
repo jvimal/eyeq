@@ -29,6 +29,7 @@ extern int ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE;
 extern int IsoGlobalEnabled;
 extern int IsoAutoGenerateFeedback;
 extern int ISO_FEEDBACK_INTERVAL_US;
+extern int ISO_TXC_UPDATE_INTERVAL_US;
 
 // TODO: We are assuming that we don't need to do any VLAN tag
 // ourselves

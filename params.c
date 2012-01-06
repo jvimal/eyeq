@@ -33,6 +33,7 @@ int ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE = 10;
 int IsoGlobalEnabled = 0;
 int IsoAutoGenerateFeedback = 0;
 int ISO_FEEDBACK_INTERVAL_US = 500;
+int ISO_TXC_UPDATE_INTERVAL_US = 20000;
 
 // TODO: We are assuming that we don't need to do any VLAN tag
 // ourselves
@@ -72,6 +73,7 @@ struct iso_param iso_params[32] = {
   {"ISO_RL_UPDATE_INTERVAL_US", &ISO_RL_UPDATE_INTERVAL_US },
   {"ISO_BURST_FACTOR", &ISO_BURST_FACTOR },
   {"ISO_VQ_UPDATE_INTERVAL_US", &ISO_VQ_UPDATE_INTERVAL_US },
+  {"ISO_TXC_UPDATE_INTERVAL_US", &ISO_TXC_UPDATE_INTERVAL_US },
   {"", NULL},
 };
 
@@ -232,6 +234,52 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 }
 
 module_param_call(assoc_txc_vq, iso_sys_assoc_txc_vq, iso_sys_noget, NULL, S_IWUSR);
+
+/*
+ * Set TXC's weight
+ * echo -n 00:00:00:00:01:01 weight <w>
+ * > /sys/module/perfiso/parameters/set_txc_weight
+ */
+static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
+	char _txc[128];
+	iso_class_t klass;
+	struct iso_tx_class *txc;
+	unsigned long flags;
+	int n, ret = 0, weight;
+
+	n = sscanf(val, "%s weight %d", _txc, &weight);
+	if(n != 2) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	klass = iso_class_parse(_txc);
+	txc = iso_txc_find(klass);
+	if(txc == NULL) {
+		printk(KERN_INFO "perfiso: Could not find txc %s\n", _txc);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if(weight < 0 || weight > 1024) {
+		printk(KERN_INFO "perfiso: Invalid weight.  Weight must lie in [1, 1024]\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	spin_lock_irqsave(&txc->writelock, flags);
+	txc_total_weight -= txc->weight;
+	txc->weight = (u32)weight;
+	txc_total_weight += txc->weight;
+	spin_unlock_irqrestore(&txc->writelock, flags);
+
+	printk(KERN_INFO "perfiso: Set weight %d for txc %s\n",
+		   weight, _txc);
+ out:
+	return ret;
+}
+
+module_param_call(set_txc_weight, iso_sys_set_txc_weight, iso_sys_noget, NULL, S_IWUSR);
 
 
 /*
