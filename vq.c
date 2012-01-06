@@ -127,7 +127,7 @@ void iso_vq_tick(u64 dt) {
 		if(iso_vq_active(vq) && active_weight > 0) {
 			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / active_weight;
 		} else {
-			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / total_weight;
+			vq->rate = 0;
 		}
 	}
 }
