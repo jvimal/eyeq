@@ -7,12 +7,21 @@
 extern char *iso_param_dev;
 extern struct net_device *iso_netdev;
 struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
+struct list_head txc_list;
+ktime_t txc_last_update_time;
+int txc_total_weight;
+spinlock_t txc_spinlock;
 
 int iso_tx_hook_init(void);
 
 int iso_tx_init() {
 	printk(KERN_INFO "perfiso: Init TX path\n");
 
+	INIT_LIST_HEAD(&txc_list);
+	txc_last_update_time = ktime_get();
+	spin_lock_init(&txc_spinlock);
+
+	txc_total_weight = 0;
 	return iso_tx_hook_init();
 }
 
@@ -28,6 +37,46 @@ void iso_tx_exit() {
 			hlist_del(&txc->hash_node);
 			iso_txc_free(txc);
 		}
+	}
+}
+
+inline void iso_txc_tick() {
+	ktime_t now;
+	u64 dt;
+	unsigned long flags;
+	struct iso_tx_class *txc, *txc_next;
+	u64 active_weight, accum, min_xmit;
+
+	now = ktime_get();
+	dt = ktime_us_delta(now, txc_last_update_time);
+
+	if(likely(dt < ISO_TXC_UPDATE_INTERVAL_US))
+		return;
+
+	if(spin_trylock_irqsave(&txc_spinlock, flags)) {
+		txc_last_update_time = now;
+		active_weight = 0;
+
+		for_each_txc(txc) {
+			accum = iso_rl_accum_xmit(&txc->rl);
+			min_xmit = ((txc->rl.rate * dt) >> 3) / 5;
+			txc->active = (accum > min_xmit);
+
+			if(txc->active)
+				active_weight += txc->weight;
+		}
+
+		/* TODO: Clamp rates */
+		for_each_txc(txc) {
+			if(txc->active) {
+				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / active_weight;
+			} else {
+				/* Set small rate so we know when the class becomes active  */
+				txc->rl.rate = 100;
+			}
+		}
+
+		spin_unlock_irqrestore(&txc_spinlock, flags);
 	}
 }
 
@@ -50,6 +99,9 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	}
 
 	seq_printf(s, "txc class %s   assoc vq %s   freelist %d\n", buff, vqc, txc->freelist_count);
+	seq_printf(s, "txc rl\n");
+	iso_rl_show(&txc->rl, s);
+	seq_printf(s, "\n");
 
 	seq_printf(s, "per dest state:\n");
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
@@ -87,6 +139,9 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 	int cpu = smp_processor_id();
 
 	rcu_read_lock();
+
+	iso_txc_tick();
+
 	txc = iso_txc_find(iso_txc_classify(skb));
 	if(txc == NULL)
 		goto accept;
@@ -242,6 +297,10 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	spin_lock_init(&txc->writelock);
 	txc->freelist_count = 0;
 
+	iso_rl_init(&txc->rl);
+	txc->weight = 1;
+	txc->active = 0;
+
 	INIT_WORK(&txc->allocator, iso_txc_allocator);
 }
 
@@ -269,6 +328,9 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 	rcu_read_lock();
 	head = iso_txc_find_bucket(klass);
 	hlist_add_head_rcu(&txc->hash_node, head);
+	list_add_tail_rcu(&txc->list, &txc_list);
+	txc_total_weight += txc->weight;
+	iso_txc_recompute_rates();
 	rcu_read_unlock();
 
 	return txc;
@@ -309,6 +371,7 @@ void iso_txc_prealloc(struct iso_tx_class *txc, int num) {
 
 		iso_state_init(state);
 		iso_rl_init(rl);
+		rl->txc = txc;
 
 		spin_lock_irqsave(&txc->writelock, flags);
 		txc->freelist_count++;
@@ -324,7 +387,8 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	struct hlist_node *n, *nn;
 	struct iso_rl *rl, *temprl;
 	struct iso_per_dest_state *state, *tempstate;
-	int i;
+	int i, j;
+	unsigned long flags;
 
 	synchronize_rcu();
 
@@ -363,6 +427,22 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	if(txc->vq) {
 		atomic_dec(&txc->vq->refcnt);
 	}
+
+	/* Kill the default rate limiter */
+	for_each_possible_cpu(i) {
+		struct iso_rl_queue *q = per_cpu_ptr(txc->rl.queue, i);
+		hrtimer_cancel(&q->timer);
+		tasklet_kill(&q->xmit_timeout);
+
+		spin_lock_irqsave(&q->spinlock, flags);
+		for(j = q->head; j != q->tail; j++) {
+			j &= ISO_MAX_QUEUE_LEN_PKT;
+			kfree_skb(q->queue[j]);
+		}
+		q->head = q->tail = 0;
+		spin_unlock_irqrestore(&q->spinlock, flags);
+	}
+	free_percpu(txc->rl.queue);
 
 	kfree(txc);
 }

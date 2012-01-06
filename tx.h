@@ -39,11 +39,21 @@ struct iso_tx_class {
 	struct list_head prealloc_rl_list;
 	int freelist_count;
 
+	/* Rate limiter assigned to this TX class as a whole */
+	struct iso_rl rl;
+	int weight;
+	int active;
+
 	/* Allocate from process context */
 	struct work_struct allocator;
 };
 
 extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
+extern struct list_head txc_list;
+extern int txc_total_weight;
+extern spinlock_t txc_spinlock;
+
+#define for_each_txc(txc) list_for_each_entry_safe(txc, txc_next, &txc_list, list)
 
 int iso_tx_init(void);
 void iso_tx_exit(void);
@@ -66,6 +76,8 @@ int iso_txc_mark_install(char *mark);
 int iso_txc_install(char *klass);
 void iso_txc_prealloc(struct iso_tx_class *, int);
 void iso_txc_allocator(struct work_struct *);
+inline void iso_txc_tick(void);
+static inline void iso_txc_recompute_rates(void);
 
 void iso_state_init(struct iso_per_dest_state *);
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *, int rx);
@@ -92,6 +104,17 @@ static inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
 	rcu_read_unlock();
 
 	return found;
+}
+
+static inline void iso_txc_recompute_rates() {
+	struct iso_tx_class *txc, *txc_next;
+	unsigned long flags;
+
+	spin_lock_irqsave(&txc_spinlock, flags);
+	for_each_txc(txc) {
+		txc->rl.rate = txc->weight * ISO_MAX_TX_RATE / txc_total_weight;
+	}
+	spin_unlock_irqrestore(&txc_spinlock, flags);
 }
 
 #endif /* __TX_H__ */
