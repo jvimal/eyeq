@@ -36,12 +36,15 @@ struct iso_rl_queue {
 	int first_pkt_size;
 
 	u64 bytes_enqueued;
+	u64 bytes_xmit;
 	u64 feedback_backlog;
 
 	u64 tokens;
 	spinlock_t spinlock;
 	struct tasklet_struct xmit_timeout;
 	struct hrtimer timer;
+
+	int cpu;
 	struct iso_rl *rl;
 };
 
@@ -55,6 +58,8 @@ struct iso_rl {
 	struct iso_rl_queue __percpu *queue;
 	struct hlist_node hash_node;
 	struct list_head prealloc_list;
+
+	struct iso_tx_class *txc;
 };
 
 void iso_rl_init(struct iso_rl *);
@@ -118,6 +123,19 @@ static inline int iso_rl_should_refill(struct iso_rl *rl) {
 	if(ktime_us_delta(now, rl->last_update_time) > ISO_RL_UPDATE_INTERVAL_US)
 		return 1;
 	return 0;
+}
+
+static inline u64 iso_rl_accum_xmit(struct iso_rl *rl) {
+	u64 total = 0;
+	int i;
+	struct iso_rl_queue *q;
+
+	for_each_online_cpu(i) {
+		q = per_cpu_ptr(rl->queue, i);
+		total += q->bytes_xmit;
+		q->bytes_xmit = 0;
+	}
+	return total;
 }
 
 #endif /* __RL_H__ */

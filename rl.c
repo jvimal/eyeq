@@ -1,5 +1,6 @@
 
 #include "rl.h"
+#include "tx.h"
 
 void iso_rl_init(struct iso_rl *rl) {
 	int i;
@@ -14,6 +15,8 @@ void iso_rl_init(struct iso_rl *rl) {
 		q->head = q->tail = q->length = 0;
 		q->first_pkt_size = 0;
 		q->bytes_enqueued = 0;
+		q->bytes_xmit = 0;
+
 		q->feedback_backlog = 0;
 		q->tokens = 0;
 
@@ -23,10 +26,12 @@ void iso_rl_init(struct iso_rl *rl) {
 		hrtimer_init(&q->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 		q->timer.function = iso_rl_timeout;
 
+		q->cpu = i;
 		q->rl = rl;
 	}
 
 	INIT_LIST_HEAD(&rl->prealloc_list);
+	rl->txc = NULL;
 }
 
 void iso_rl_free(struct iso_rl *rl) {
@@ -133,7 +138,9 @@ void iso_rl_dequeue(unsigned long _q) {
 	u32 size;
 	struct sk_buff *pkt;
 	struct iso_rl_queue *q = (struct iso_rl_queue *)_q;
+	struct iso_rl_queue *rootq;
 	struct iso_rl *rl = q->rl;
+	enum iso_verdict verdict;
 
 	/* Try to borrow from the global token pool; if that fails,
 	   program the timeout for this queue */
@@ -169,7 +176,15 @@ void iso_rl_dequeue(unsigned long _q) {
 				q->feedback_backlog = 0;
 		}
 
-		skb_xmit(pkt);
+		if(rl->txc == NULL) {
+			skb_xmit(pkt);
+			q->bytes_xmit += size;
+		} else {
+			/* Enqueue in parent tx class's rate limiter */
+			verdict = iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
+			if(verdict == ISO_VERDICT_DROP)
+				kfree_skb(pkt);
+		}
 
 		if(q->length == 0) {
 			timeout = 0;
@@ -182,6 +197,11 @@ void iso_rl_dequeue(unsigned long _q) {
 	}
 
 unlock:
+	if(rl->txc != NULL) {
+		rootq = per_cpu_ptr(rl->txc->rl.queue, q->cpu);
+		iso_rl_dequeue((unsigned long)rootq);
+	}
+
 	spin_unlock(&q->spinlock);
 	if(timeout) {
 		hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
