@@ -4,7 +4,7 @@
 void iso_rl_init(struct iso_rl *rl) {
 	int i;
 	rl->rate = ISO_RFAIR_INITIAL;
-	rl->total_tokens = 1;
+	rl->total_tokens = 15000;
 	rl->last_update_time = ktime_get();
 	rl->queue = alloc_percpu(struct iso_rl_queue);
 	spin_lock_init(&rl->spinlock);
