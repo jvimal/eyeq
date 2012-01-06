@@ -191,18 +191,21 @@ enum hrtimer_restart iso_rl_timeout(struct hrtimer *timer) {
 
 int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 	unsigned long flags;
+	u64 borrow;
 	int timeout = 1;
-	u64 borrow, cap;
 
 	spin_lock_irqsave(&rl->spinlock, flags);
 	borrow = max(iso_rl_singleq_burst(rl), (u64)q->first_pkt_size);
 
-	if(rl->total_tokens > borrow) {
+	if(rl->total_tokens >= borrow) {
 		rl->total_tokens -= borrow;
 		q->tokens += borrow;
-		cap = max((rl->rate * ISO_MAX_BURST_TIME_US) >> 3, (u64)ISO_MIN_BURST_BYTES);
-		q->tokens = min(cap, q->tokens);
-
+		/* XXX: Because we borrow when we are running low of tokens,
+		   we don't need to cap */
+		/*
+		  cap = max((rl->rate * ISO_MAX_BURST_TIME_US) >> 3, (u64)ISO_MIN_BURST_BYTES);
+		  q->tokens = min(cap, q->tokens);
+		*/
 		timeout = 0;
 	}
 
