@@ -14,7 +14,8 @@ int ISO_FALPHA = 8;
 /* All rates are in Mbps */
 int ISO_MAX_TX_RATE = 10000;
 // The VQ's net drain rate in Mbps is 90% of 10G ~ 9000 Mbps
-int ISO_VQ_DRAIN_RATE_MBPS = 9000;
+/* TODO: explain why this is 8500 and not 9000!  hint: due to GRO */
+int ISO_VQ_DRAIN_RATE_MBPS = 8500;
 int ISO_MAX_BURST_TIME_US = 5000;
 int ISO_MIN_BURST_BYTES = 65536;
 int ISO_RATEMEASURE_INTERVAL_US = 1000 * 100;
@@ -31,7 +32,7 @@ int ISO_RFAIR_INCREASE_INTERVAL_US = 5000;
 int ISO_RFAIR_FEEDBACK_TIMEOUT_US = 1000 * 1000;
 int ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE = 10;
 int IsoGlobalEnabled = 0;
-int IsoAutoGenerateFeedback = 0;
+int IsoAutoGenerateFeedback = 1;
 int ISO_FEEDBACK_INTERVAL_US = 500;
 int ISO_TXC_UPDATE_INTERVAL_US = 20000;
 
@@ -45,7 +46,7 @@ int ISO_FEEDBACK_PACKET_IPPROTO = 143; // should be some unused protocol
 // New parameters
 int ISO_RL_UPDATE_INTERVAL_US = 200;
 int ISO_BURST_FACTOR = 8;
-int ISO_VQ_UPDATE_INTERVAL_US = 100;
+int ISO_VQ_UPDATE_INTERVAL_US = 25;
 
 struct iso_param iso_params[32] = {
   {"ISO_FALPHA", &ISO_FALPHA },
