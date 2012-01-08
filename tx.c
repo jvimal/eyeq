@@ -107,7 +107,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
 		head = &txc->state_bucket[i];
 		hlist_for_each_entry_rcu(state, node, head, hash_node) {
-			seq_printf(s, "ip %x   rl %p\n", state->ip_key, state->rl);
+			seq_printf(s, "ip %x   rl %p   hash %d\n", state->ip_key, state->rl, i);
 			iso_rc_show(&state->tx_rc, s);
 		}
 	}
@@ -119,7 +119,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 
 		hlist_for_each_entry_rcu(rl, node, head, hash_node) {
 			if(nth == 0) {
-				seq_printf(s, "%d ", i);
+				seq_printf(s, "hash %d ", i);
 			}
 			iso_rl_show(rl, s);
 			nth++;
@@ -259,7 +259,7 @@ struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 	struct hlist_node *node;
 	rcu_read_lock();
 
-	head = &txc->rl_bucket[ip & (ISO_MAX_RL_BUCKETS - 1)];
+	head = &txc->rl_bucket[jhash_1word(ip, 0xfaceface) & (ISO_MAX_RL_BUCKETS - 1)];
 	hlist_for_each_entry_rcu(rl, node, head, hash_node) {
 		if(rl->ip == ip)
 			goto found;
