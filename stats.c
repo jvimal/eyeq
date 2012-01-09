@@ -62,6 +62,35 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 	return 0;
 }
 
+static int iso_csvstats_proc_seq_show(struct seq_file *s, void *v) {
+	struct iso_tx_class *txc, *txc_next;
+	struct iso_rl *rl;
+	struct iso_vq *vq, *vq_next;
+	struct iso_vq_stats *stats;
+
+	int i;
+	u64 rx_bytes;
+	char buff[128];
+
+	for_each_txc(txc) {
+		rl = &txc->rl;
+		iso_class_show(txc->klass, buff);
+		seq_printf(s, "tx,%s,%llu\n", buff, txc->last_accum_xmit);
+	}
+
+	for_each_vq(vq) {
+		rx_bytes = 0;
+		iso_class_show(vq->klass, buff);
+		for_each_online_cpu(i) {
+			stats = per_cpu_ptr(vq->percpu_stats, i);
+			rx_bytes += stats->rx_bytes;
+		}
+		seq_printf(s, "rx,%s,%llu\n", buff, rx_bytes);
+	}
+
+	return 0;
+}
+
 static struct proc_dir_entry *iso_stats_proc;
 
 static struct seq_operations iso_stats_proc_seq_ops = {
@@ -84,17 +113,58 @@ static struct file_operations iso_stats_proc_file_ops = {
 	.release = seq_release
 };
 
+
+/* For program friendly CSV stats */
+static struct proc_dir_entry *iso_csvstats_proc;
+
+static struct seq_operations iso_csvstats_proc_seq_ops = {
+	.start = iso_stats_proc_seq_start,
+	.next = iso_stats_proc_seq_next,
+	.stop = iso_stats_proc_seq_stop,
+	.show = iso_csvstats_proc_seq_show
+};
+
+static int iso_csvstats_proc_open(struct inode *inode, struct file *file)
+{
+	return seq_open(file, &iso_csvstats_proc_seq_ops);
+}
+
+static struct file_operations iso_csvstats_proc_file_ops = {
+	.owner = THIS_MODULE,
+	.open = iso_csvstats_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release
+};
+
+
 int iso_stats_init() {
+	int ret = 0;
+
 	iso_stats_proc = create_proc_entry(ISO_STATS_PROC_NAME, 0, NULL);
 	if(iso_stats_proc) {
 		iso_stats_proc->proc_fops = &iso_stats_proc_file_ops;
+	} else {
+		ret = 1;
+		goto out;
 	}
 
-	return iso_stats_proc == NULL;
+	iso_csvstats_proc = create_proc_entry(ISO_CSVSTATS_PROC_NAME, 0, NULL);
+	if(iso_csvstats_proc) {
+		iso_csvstats_proc->proc_fops = &iso_csvstats_proc_file_ops;
+	} else {
+		ret = 1;
+		remove_proc_entry(ISO_STATS_PROC_NAME, NULL);
+		goto out;
+	}
+
+ out:
+	return ret;
 }
 
 void iso_stats_exit() {
 	remove_proc_entry(ISO_STATS_PROC_NAME, NULL);
+	remove_proc_entry(ISO_CSVSTATS_PROC_NAME, NULL);
 }
 
 /* Local Variables: */
