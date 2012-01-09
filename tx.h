@@ -43,6 +43,7 @@ struct iso_tx_class {
 	struct iso_rl rl;
 	int weight;
 	int active;
+	u64 last_accum_xmit;
 
 	/* Allocate from process context */
 	struct work_struct allocator;

@@ -60,7 +60,8 @@ inline void iso_txc_tick() {
 		for_each_txc(txc) {
 			accum = iso_rl_accum_xmit(&txc->rl);
 			min_xmit = ((txc->rl.rate * dt) >> 3) / 5;
-			txc->active = (accum > min_xmit);
+			txc->active = ((accum - txc->last_accum_xmit) > min_xmit);
+			txc->last_accum_xmit = accum;
 
 			if(txc->active)
 				active_weight += txc->weight;
@@ -99,7 +100,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	}
 
 	seq_printf(s, "txc class %s   assoc vq %s   freelist %d\n", buff, vqc, txc->freelist_count);
-	seq_printf(s, "txc rl\n");
+	seq_printf(s, "txc rl   xmit %llu\n", txc->last_accum_xmit);
 	iso_rl_show(&txc->rl, s);
 	seq_printf(s, "\n");
 
@@ -300,6 +301,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	iso_rl_init(&txc->rl);
 	txc->weight = 1;
 	txc->active = 0;
+	txc->last_accum_xmit = 0;
 
 	INIT_WORK(&txc->allocator, iso_txc_allocator);
 }

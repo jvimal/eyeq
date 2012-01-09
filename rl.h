@@ -133,8 +133,8 @@ static inline u64 iso_rl_accum_xmit(struct iso_rl *rl) {
 	for_each_online_cpu(i) {
 		q = per_cpu_ptr(rl->queue, i);
 		total += q->bytes_xmit;
-		q->bytes_xmit = 0;
 	}
+
 	return total;
 }
 
