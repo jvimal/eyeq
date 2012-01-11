@@ -34,7 +34,6 @@ int ISO_RFAIR_FEEDBACK_TIMEOUT_DEFAULT_RATE = 10;
 int IsoGlobalEnabled = 0;
 int IsoAutoGenerateFeedback = 1;
 int ISO_FEEDBACK_INTERVAL_US = 500;
-int ISO_TXC_UPDATE_INTERVAL_US = 20000;
 
 // TODO: We are assuming that we don't need to do any VLAN tag
 // ourselves
@@ -47,6 +46,7 @@ int ISO_FEEDBACK_PACKET_IPPROTO = 143; // should be some unused protocol
 int ISO_RL_UPDATE_INTERVAL_US = 200;
 int ISO_BURST_FACTOR = 8;
 int ISO_VQ_UPDATE_INTERVAL_US = 25;
+int ISO_TXC_UPDATE_INTERVAL_US = 500;
 
 struct iso_param iso_params[32] = {
   {"ISO_FALPHA", &ISO_FALPHA },

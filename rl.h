@@ -52,6 +52,9 @@ struct iso_rl {
 	__le32 ip;
 	u64 rate;
 	u64 total_tokens;
+	u64 accum_xmit;
+	u64 accum_enqueued;
+
 	ktime_t last_update_time;
 	spinlock_t spinlock;
 
@@ -125,17 +128,20 @@ static inline int iso_rl_should_refill(struct iso_rl *rl) {
 	return 0;
 }
 
-static inline u64 iso_rl_accum_xmit(struct iso_rl *rl) {
-	u64 total = 0;
+static inline void iso_rl_accum(struct iso_rl *rl) {
+	u64 xmit, queued;
 	int i;
 	struct iso_rl_queue *q;
 
+	xmit = queued = 0;
 	for_each_online_cpu(i) {
 		q = per_cpu_ptr(rl->queue, i);
-		total += q->bytes_xmit;
+		xmit += q->bytes_xmit;
+		queued += q->bytes_enqueued;
 	}
 
-	return total;
+	rl->accum_xmit = xmit;
+	rl->accum_enqueued = queued;
 }
 
 #endif /* __RL_H__ */

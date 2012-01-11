@@ -45,7 +45,8 @@ inline void iso_txc_tick() {
 	u64 dt;
 	unsigned long flags;
 	struct iso_tx_class *txc, *txc_next;
-	u64 active_weight, accum, min_xmit;
+	struct iso_rl *rl;
+	u64 total_weight, active_weight, min_xmit, last_xmit;
 
 	now = ktime_get();
 	dt = ktime_us_delta(now, txc_last_update_time);
@@ -56,24 +57,31 @@ inline void iso_txc_tick() {
 	if(spin_trylock_irqsave(&txc_spinlock, flags)) {
 		txc_last_update_time = now;
 		active_weight = 0;
+		total_weight = 0;
 
 		for_each_txc(txc) {
-			accum = iso_rl_accum_xmit(&txc->rl);
-			min_xmit = ((txc->rl.rate * dt) >> 3) / 5;
-			txc->active = ((accum - txc->last_accum_xmit) > min_xmit);
-			txc->last_accum_xmit = accum;
+			rl = &txc->rl;
+			last_xmit = rl->accum_xmit;
+			iso_rl_accum(rl);
+			min_xmit = ((txc->vrate * dt) >> 3);
+
+			txc->active = (rl->accum_enqueued > 3000) ||
+				((rl->accum_xmit - last_xmit) > min_xmit);
 
 			if(txc->active)
 				active_weight += txc->weight;
+			total_weight += txc->weight;
 		}
 
 		/* TODO: Clamp rates */
 		for_each_txc(txc) {
 			if(txc->active) {
 				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / active_weight;
+				txc->vrate = txc->rl.rate;
 			} else {
 				/* Set small rate so we know when the class becomes active  */
-				txc->rl.rate = 100;
+				txc->vrate = 10;
+				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / total_weight;
 			}
 		}
 
@@ -100,7 +108,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	}
 
 	seq_printf(s, "txc class %s   assoc vq %s   freelist %d\n", buff, vqc, txc->freelist_count);
-	seq_printf(s, "txc rl   xmit %llu\n", txc->last_accum_xmit);
+	seq_printf(s, "txc rl   xmit %llu   queued %llu\n", txc->rl.accum_xmit, txc->rl.accum_enqueued);
 	iso_rl_show(&txc->rl, s);
 	seq_printf(s, "\n");
 
@@ -301,7 +309,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	iso_rl_init(&txc->rl);
 	txc->weight = 1;
 	txc->active = 0;
-	txc->last_accum_xmit = 0;
+	txc->vrate = 100;
 
 	INIT_WORK(&txc->allocator, iso_txc_allocator);
 }

@@ -8,6 +8,8 @@ void iso_rl_init(struct iso_rl *rl) {
 	rl->total_tokens = 15000;
 	rl->last_update_time = ktime_get();
 	rl->queue = alloc_percpu(struct iso_rl_queue);
+	rl->accum_xmit = 0;
+	rl->accum_enqueued = 0;
 	spin_lock_init(&rl->spinlock);
 
 	for_each_possible_cpu(i) {

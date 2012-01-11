@@ -43,7 +43,7 @@ struct iso_tx_class {
 	struct iso_rl rl;
 	int weight;
 	int active;
-	u64 last_accum_xmit;
+	u32 vrate;
 
 	/* Allocate from process context */
 	struct work_struct allocator;
@@ -113,7 +113,7 @@ static inline void iso_txc_recompute_rates() {
 
 	spin_lock_irqsave(&txc_spinlock, flags);
 	for_each_txc(txc) {
-		txc->rl.rate = txc->weight * ISO_MAX_TX_RATE / txc_total_weight;
+		txc->vrate = txc->rl.rate = txc->weight * ISO_MAX_TX_RATE / txc_total_weight;
 	}
 	spin_unlock_irqrestore(&txc_spinlock, flags);
 }
