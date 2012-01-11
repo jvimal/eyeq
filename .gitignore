@@ -3,3 +3,4 @@
 modules.order
 Module.symver
 *.mod.c
+tests/
