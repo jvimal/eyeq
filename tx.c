@@ -389,8 +389,7 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	struct hlist_node *n, *nn;
 	struct iso_rl *rl, *temprl;
 	struct iso_per_dest_state *state, *tempstate;
-	int i, j;
-	unsigned long flags;
+	int i;
 
 	synchronize_rcu();
 
@@ -435,7 +434,8 @@ void iso_txc_free(struct iso_tx_class *txc) {
 		struct iso_rl_queue *q = per_cpu_ptr(txc->rl.queue, i);
 		hrtimer_cancel(&q->timer);
 		tasklet_kill(&q->xmit_timeout);
-
+		/* TODO: This caused a crash.  Dunno why! */
+		/*
 		spin_lock_irqsave(&q->spinlock, flags);
 		for(j = q->head; j != q->tail; j++) {
 			j &= ISO_MAX_QUEUE_LEN_PKT;
@@ -443,6 +443,7 @@ void iso_txc_free(struct iso_tx_class *txc) {
 		}
 		q->head = q->tail = 0;
 		spin_unlock_irqrestore(&q->spinlock, flags);
+		*/
 	}
 	free_percpu(txc->rl.queue);
 

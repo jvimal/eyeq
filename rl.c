@@ -35,14 +35,17 @@ void iso_rl_init(struct iso_rl *rl) {
 }
 
 void iso_rl_free(struct iso_rl *rl) {
-	int i, j;
-	unsigned long flags;
+	int i;
+	/*int j;
+	  unsigned long flags;*/
 
 	for_each_possible_cpu(i) {
 		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
 		hrtimer_cancel(&q->timer);
 		tasklet_kill(&q->xmit_timeout);
 
+		/*
+		  This is causing an issue, and not sure how to fix it.
 		spin_lock_irqsave(&q->spinlock, flags);
 		for(j = q->head; j != q->tail; j++) {
 			j &= ISO_MAX_QUEUE_LEN_PKT;
@@ -50,6 +53,7 @@ void iso_rl_free(struct iso_rl *rl) {
 		}
 		q->head = q->tail = 0;
 		spin_unlock_irqrestore(&q->spinlock, flags);
+		*/
 	}
 	free_percpu(rl->queue);
 	kfree(rl);
