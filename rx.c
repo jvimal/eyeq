@@ -49,7 +49,7 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	changed = iso_rc_rx(rc, skb);
 
 	/* XXX: for now */
-	if(changed)
+	if(changed && ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE)
 		state->rl->rate = rc->rfair;
 
 	if(unlikely(iso_is_generated_feedback(skb)))
