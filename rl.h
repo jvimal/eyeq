@@ -41,11 +41,11 @@ struct iso_rl_queue {
 
 	u64 tokens;
 	spinlock_t spinlock;
-	struct tasklet_struct xmit_timeout;
-	struct hrtimer timer;
 
 	int cpu;
 	struct iso_rl *rl;
+	struct hrtimer *cputimer;
+	struct list_head active_list;
 };
 
 struct iso_rl {
@@ -65,6 +65,21 @@ struct iso_rl {
 	struct iso_tx_class *txc;
 };
 
+/* The per-cpu control block for rate limiters */
+struct iso_rl_cb {
+	struct hrtimer timer;
+	struct tasklet_struct xmit_timeout;
+	struct list_head active_list;
+	ktime_t last;
+	u64 avg_us;
+	int cpu;
+	int active;
+};
+
+int iso_rl_prep(void);
+void iso_rl_exit(void);
+void iso_rl_xmit_tasklet(unsigned long _cb);
+
 void iso_rl_init(struct iso_rl *);
 void iso_rl_free(struct iso_rl *);
 void iso_rl_show(struct iso_rl *, struct seq_file *);
@@ -73,7 +88,7 @@ void iso_rl_clock(struct iso_rl *);
 enum iso_verdict iso_rl_enqueue(struct iso_rl *, struct sk_buff *, int cpu);
 void iso_rl_dequeue(unsigned long _q);
 enum hrtimer_restart iso_rl_timeout(struct hrtimer *);
-int iso_rl_borrow_tokens(struct iso_rl *, struct iso_rl_queue *);
+inline int iso_rl_borrow_tokens(struct iso_rl *, struct iso_rl_queue *);
 static inline ktime_t iso_rl_gettimeout(void);
 static inline u64 iso_rl_singleq_burst(struct iso_rl *);
 

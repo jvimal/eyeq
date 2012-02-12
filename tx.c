@@ -20,6 +20,8 @@ int iso_tx_init() {
 	INIT_LIST_HEAD(&txc_list);
 	txc_last_update_time = ktime_get();
 	spin_lock_init(&txc_spinlock);
+	if(iso_rl_prep())
+		return -1;
 
 	txc_total_weight = 0;
 	return iso_tx_hook_init();
@@ -30,6 +32,8 @@ void iso_tx_exit() {
 	struct hlist_head *head;
 	struct hlist_node *node, *nextnode;
 	struct iso_tx_class *txc;
+
+	iso_rl_exit();
 
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &iso_tx_bucket[i];
@@ -437,24 +441,7 @@ void iso_txc_free(struct iso_tx_class *txc) {
 		atomic_dec(&txc->vq->refcnt);
 	}
 
-	/* Kill the default rate limiter */
-	for_each_possible_cpu(i) {
-		struct iso_rl_queue *q = per_cpu_ptr(txc->rl.queue, i);
-		hrtimer_cancel(&q->timer);
-		tasklet_kill(&q->xmit_timeout);
-		/* TODO: This caused a crash.  Dunno why! */
-		/*
-		spin_lock_irqsave(&q->spinlock, flags);
-		for(j = q->head; j != q->tail; j++) {
-			j &= ISO_MAX_QUEUE_LEN_PKT;
-			kfree_skb(q->queue[j]);
-		}
-		q->head = q->tail = 0;
-		spin_unlock_irqrestore(&q->spinlock, flags);
-		*/
-	}
 	free_percpu(txc->rl.queue);
-
 	kfree(txc);
 }
 

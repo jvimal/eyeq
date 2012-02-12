@@ -2,6 +2,69 @@
 #include "rl.h"
 #include "tx.h"
 
+static struct iso_rl_cb __percpu *rlcb;
+
+/* Called the first time when the module is initialised */
+int iso_rl_prep() {
+	int cpu;
+
+	rlcb = alloc_percpu(struct iso_rl_cb);
+	if(rlcb == NULL)
+		return -1;
+
+	/* Init everything; but what about hotplug?  Hmm... */
+	for_each_possible_cpu(cpu) {
+		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, cpu);
+		hrtimer_init(&cb->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		cb->timer.function = iso_rl_timeout;
+
+		tasklet_init(&cb->xmit_timeout, iso_rl_xmit_tasklet, (unsigned long)cb);
+		INIT_LIST_HEAD(&cb->active_list);
+
+		cb->last = ktime_get();
+		cb->avg_us = 0;
+		cb->cpu = cpu;
+		cb->active = 0;
+	}
+
+	return 0;
+}
+
+void iso_rl_exit() {
+	int cpu;
+
+	for_each_possible_cpu(cpu) {
+		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, cpu);
+		hrtimer_cancel(&cb->timer);
+		tasklet_kill(&cb->xmit_timeout);
+	}
+
+	free_percpu(rlcb);
+}
+
+void iso_rl_xmit_tasklet(unsigned long _cb) {
+	struct iso_rl_cb *cb = (struct iso_rl_cb *)_cb;
+	struct iso_rl_queue *q, *qtmp;
+	ktime_t last;
+	ktime_t dt;
+
+	/* This block is not needed, but just for debugging purposes */
+	last = cb->last;
+	cb->last = ktime_get();
+	cb->avg_us = ktime_us_delta(cb->last, last);
+
+	list_for_each_entry_safe(q, qtmp, &cb->active_list, active_list) {
+		list_del_init(&q->active_list);
+		iso_rl_clock(q->rl);
+		iso_rl_dequeue((unsigned long)q);
+	}
+
+	dt = iso_rl_gettimeout();
+	cb->active = 0;
+	hrtimer_add_expires(&cb->timer, dt);
+	hrtimer_start(&cb->timer, dt, HRTIMER_MODE_REL);
+}
+
 void iso_rl_init(struct iso_rl *rl) {
 	int i;
 	rl->rate = ISO_RFAIR_INITIAL;
@@ -14,6 +77,8 @@ void iso_rl_init(struct iso_rl *rl) {
 
 	for_each_possible_cpu(i) {
 		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
+		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, i);
+
 		q->head = q->tail = q->length = 0;
 		q->first_pkt_size = 0;
 		q->bytes_enqueued = 0;
@@ -23,13 +88,12 @@ void iso_rl_init(struct iso_rl *rl) {
 		q->tokens = 0;
 
 		spin_lock_init(&q->spinlock);
-		tasklet_init(&q->xmit_timeout, iso_rl_dequeue, (unsigned long)q);
-
-		hrtimer_init(&q->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-		q->timer.function = iso_rl_timeout;
 
 		q->cpu = i;
 		q->rl = rl;
+		q->cputimer = &cb->timer;
+
+		INIT_LIST_HEAD(&q->active_list);
 	}
 
 	INIT_LIST_HEAD(&rl->prealloc_list);
@@ -37,26 +101,6 @@ void iso_rl_init(struct iso_rl *rl) {
 }
 
 void iso_rl_free(struct iso_rl *rl) {
-	int i;
-	/*int j;
-	  unsigned long flags;*/
-
-	for_each_possible_cpu(i) {
-		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
-		hrtimer_cancel(&q->timer);
-		tasklet_kill(&q->xmit_timeout);
-
-		/*
-		  This is causing an issue, and not sure how to fix it.
-		spin_lock_irqsave(&q->spinlock, flags);
-		for(j = q->head; j != q->tail; j++) {
-			j &= ISO_MAX_QUEUE_LEN_PKT;
-			kfree_skb(q->queue[j]);
-		}
-		q->head = q->tail = 0;
-		spin_unlock_irqrestore(&q->spinlock, flags);
-		*/
-	}
 	free_percpu(rl->queue);
 	kfree(rl);
 }
@@ -153,10 +197,8 @@ void iso_rl_dequeue(unsigned long _q) {
 
 	if(unlikely(q->tokens < q->first_pkt_size)) {
 		timeout = iso_rl_borrow_tokens(rl, q);
-		if(timeout) {
-			hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
-			return;
-		}
+		if(timeout)
+			goto timeout;
 	}
 
 	/* Some other thread is trying to dequeue, so let's not spin unnecessarily */
@@ -209,21 +251,28 @@ unlock:
 	}
 
 	spin_unlock(&q->spinlock);
+
+timeout:
 	if(timeout) {
-		hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
+		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, q->cpu);
+		/* don't recursively add! */
+		if(list_empty(&q->active_list))
+			list_add(&q->active_list, &cb->active_list);
+		if(!cb->active)
+			hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
 	}
 }
 
 /* HARDIRQ timeout */
 enum hrtimer_restart iso_rl_timeout(struct hrtimer *timer) {
 	/* schedue xmit tasklet to go into softirq context */
-	struct iso_rl_queue *q = container_of(timer, struct iso_rl_queue, timer);
-	iso_rl_clock(q->rl);
-	tasklet_schedule(&q->xmit_timeout);
+	struct iso_rl_cb *cb = container_of(timer, struct iso_rl_cb, timer);
+	cb->active = 1;
+	tasklet_schedule(&cb->xmit_timeout);
 	return HRTIMER_NORESTART;
 }
 
-int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
+inline int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 	unsigned long flags;
 	u64 borrow;
 	int timeout = 1;
@@ -242,6 +291,9 @@ int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 		*/
 		timeout = 0;
 	}
+
+	if(hrtimer_active(q->cputimer))
+		timeout = 0;
 
 	spin_unlock_irqrestore(&rl->spinlock, flags);
 	return timeout;
