@@ -59,10 +59,12 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 		iso_rl_dequeue((unsigned long)q);
 	}
 
-	dt = iso_rl_gettimeout();
-	cb->active = 0;
-	hrtimer_add_expires(&cb->timer, dt);
-	hrtimer_start(&cb->timer, dt, HRTIMER_MODE_REL);
+	if(!list_empty(&cb->active_list) && !iso_exiting) {
+		dt = iso_rl_gettimeout();
+		hrtimer_start(&cb->timer, dt, HRTIMER_MODE_REL);
+	} else {
+		cb->active = 0;
+	}
 }
 
 void iso_rl_init(struct iso_rl *rl) {
