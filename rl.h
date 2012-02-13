@@ -73,12 +73,12 @@ struct iso_rl_cb {
 	ktime_t last;
 	u64 avg_us;
 	int cpu;
-	int active;
 };
 
 int iso_rl_prep(void);
 void iso_rl_exit(void);
 void iso_rl_xmit_tasklet(unsigned long _cb);
+extern struct iso_rl_cb __percpu *rlcb;
 
 void iso_rl_init(struct iso_rl *);
 void iso_rl_free(struct iso_rl *);

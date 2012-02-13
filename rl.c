@@ -2,7 +2,8 @@
 #include "rl.h"
 #include "tx.h"
 
-static struct iso_rl_cb __percpu *rlcb;
+struct iso_rl_cb __percpu *rlcb;
+extern int iso_exiting;
 
 /* Called the first time when the module is initialised */
 int iso_rl_prep() {
@@ -24,7 +25,6 @@ int iso_rl_prep() {
 		cb->last = ktime_get();
 		cb->avg_us = 0;
 		cb->cpu = cpu;
-		cb->active = 0;
 	}
 
 	return 0;
@@ -35,8 +35,8 @@ void iso_rl_exit() {
 
 	for_each_possible_cpu(cpu) {
 		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, cpu);
-		hrtimer_cancel(&cb->timer);
 		tasklet_kill(&cb->xmit_timeout);
+		hrtimer_cancel(&cb->timer);
 	}
 
 	free_percpu(rlcb);
@@ -62,8 +62,6 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 	if(!list_empty(&cb->active_list) && !iso_exiting) {
 		dt = iso_rl_gettimeout();
 		hrtimer_start(&cb->timer, dt, HRTIMER_MODE_REL);
-	} else {
-		cb->active = 0;
 	}
 }
 
@@ -255,13 +253,12 @@ unlock:
 	spin_unlock(&q->spinlock);
 
 timeout:
-	if(timeout) {
+	if(timeout && !iso_exiting) {
 		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, q->cpu);
 		/* don't recursively add! */
 		if(list_empty(&q->active_list))
 			list_add(&q->active_list, &cb->active_list);
-		if(!cb->active)
-			hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
+		hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
 	}
 }
 
@@ -269,7 +266,6 @@ timeout:
 enum hrtimer_restart iso_rl_timeout(struct hrtimer *timer) {
 	/* schedue xmit tasklet to go into softirq context */
 	struct iso_rl_cb *cb = container_of(timer, struct iso_rl_cb, timer);
-	cb->active = 1;
 	tasklet_schedule(&cb->xmit_timeout);
 	return HRTIMER_NORESTART;
 }

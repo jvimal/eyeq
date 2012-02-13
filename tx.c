@@ -11,6 +11,7 @@ struct list_head txc_list;
 ktime_t txc_last_update_time;
 int txc_total_weight;
 spinlock_t txc_spinlock;
+extern int iso_exiting;
 
 int iso_tx_hook_init(void);
 
