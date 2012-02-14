@@ -67,6 +67,7 @@ struct iso_rl {
 
 /* The per-cpu control block for rate limiters */
 struct iso_rl_cb {
+	spinlock_t spinlock;
 	struct hrtimer timer;
 	struct tasklet_struct xmit_timeout;
 	struct list_head active_list;

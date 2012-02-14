@@ -16,6 +16,8 @@ int iso_rl_prep() {
 	/* Init everything; but what about hotplug?  Hmm... */
 	for_each_possible_cpu(cpu) {
 		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, cpu);
+		spin_lock_init(&cb->spinlock);
+
 		hrtimer_init(&cb->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 		cb->timer.function = iso_rl_timeout;
 
@@ -44,17 +46,40 @@ void iso_rl_exit() {
 
 void iso_rl_xmit_tasklet(unsigned long _cb) {
 	struct iso_rl_cb *cb = (struct iso_rl_cb *)_cb;
-	struct iso_rl_queue *q, *qtmp;
+	struct iso_rl_queue *q, *qtmp, *first;
 	ktime_t last;
 	ktime_t dt;
+	int count = 0;
+	unsigned long flags;
+
+#define budget 500
+
+	if(iso_exiting)
+		return;
 
 	/* This block is not needed, but just for debugging purposes */
 	last = cb->last;
 	cb->last = ktime_get();
 	cb->avg_us = ktime_us_delta(cb->last, last);
 
+	first = list_entry(cb->active_list.next, struct iso_rl_queue, active_list);
+
 	list_for_each_entry_safe(q, qtmp, &cb->active_list, active_list) {
-		list_del_init(&q->active_list);
+		count++;
+		if(qtmp == first || count++ > budget) {
+			/* Break out of looping */
+			break;
+		}
+
+		if(spin_trylock(&q->spinlock)) {
+			spin_lock_irqsave(&cb->spinlock, flags);
+			list_del_init(&q->active_list);
+			spin_unlock_irqrestore(&cb->spinlock, flags);
+			spin_unlock(&q->spinlock);
+		} else {
+			continue;
+		}
+
 		iso_rl_clock(q->rl);
 		iso_rl_dequeue((unsigned long)q);
 	}
@@ -191,6 +216,7 @@ void iso_rl_dequeue(unsigned long _q) {
 	struct iso_rl_queue *rootq;
 	struct iso_rl *rl = q->rl;
 	enum iso_verdict verdict;
+	struct sk_buff_head list;
 
 	/* Try to borrow from the global token pool; if that fails,
 	   program the timeout for this queue */
@@ -204,6 +230,8 @@ void iso_rl_dequeue(unsigned long _q) {
 	/* Some other thread is trying to dequeue, so let's not spin unnecessarily */
 	if(unlikely(!spin_trylock(&q->spinlock)))
 		return;
+
+	skb_queue_head_init(&list);
 
 	if(q->length == 0)
 		goto unlock;
@@ -229,9 +257,12 @@ void iso_rl_dequeue(unsigned long _q) {
 			q->bytes_xmit += size;
 		} else {
 			/* Enqueue in parent tx class's rate limiter */
+#if 0
 			verdict = iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
 			if(verdict == ISO_VERDICT_DROP)
 				kfree_skb(pkt);
+#endif
+			__skb_queue_tail(&list, pkt);
 		}
 
 		if(q->length == 0) {
@@ -245,19 +276,33 @@ void iso_rl_dequeue(unsigned long _q) {
 	}
 
 unlock:
+	spin_unlock(&q->spinlock);
+
 	if(rl->txc != NULL) {
+		/* Now transfer the dequeued packets to the parent's queue */
+		while((pkt = __skb_dequeue(&list)) != NULL) {
+			verdict = iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
+			if(verdict == ISO_VERDICT_DROP)
+				kfree_skb(pkt);
+		}
+
+		/* Trigger the parent dequeue */
 		rootq = per_cpu_ptr(rl->txc->rl.queue, q->cpu);
 		iso_rl_dequeue((unsigned long)rootq);
 	}
 
-	spin_unlock(&q->spinlock);
-
 timeout:
 	if(timeout && !iso_exiting) {
 		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, q->cpu);
+		unsigned long flags;
+
 		/* don't recursively add! */
-		if(list_empty(&q->active_list))
-			list_add(&q->active_list, &cb->active_list);
+		if(list_empty(&q->active_list)) {
+			spin_lock_irqsave(&cb->spinlock, flags);
+			list_add_tail(&q->active_list, &cb->active_list);
+			spin_unlock_irqrestore(&cb->spinlock, flags);
+		}
+
 		hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
 	}
 }
@@ -290,7 +335,7 @@ inline int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 		timeout = 0;
 	}
 
-	if(hrtimer_active(q->cputimer))
+	if(iso_exiting)
 		timeout = 0;
 
 	spin_unlock_irqrestore(&rl->spinlock, flags);
