@@ -186,8 +186,10 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 	iso_rl_clock(rl);
 
 	spin_lock(&q->spinlock);
+
 	if(q->length == ISO_MAX_QUEUE_LEN_PKT+1) {
-		goto drop;
+		verdict = ISO_VERDICT_DROP;
+		goto done;
 	}
 
 	q->queue[q->tail++] = pkt;
@@ -196,10 +198,6 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 	q->bytes_enqueued += skb_size(pkt);
 
 	verdict = ISO_VERDICT_SUCCESS;
-	goto done;
-
- drop:
-	verdict = ISO_VERDICT_DROP;
 
  done:
 	spin_unlock(&q->spinlock);
