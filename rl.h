@@ -29,10 +29,7 @@ enum iso_verdict {
 };
 
 struct iso_rl_queue {
-	struct sk_buff *queue[ISO_MAX_QUEUE_LEN_PKT + 1];
-	int head;
-	int tail;
-	int length;
+	struct sk_buff_head list;
 	int first_pkt_size;
 
 	u64 bytes_enqueued;

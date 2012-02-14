@@ -14,7 +14,7 @@ void iso_rl_init(struct iso_rl *rl) {
 
 	for_each_possible_cpu(i) {
 		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
-		q->head = q->tail = q->length = 0;
+		skb_queue_head_init(&q->list);
 		q->first_pkt_size = 0;
 		q->bytes_enqueued = 0;
 		q->bytes_xmit = 0;
@@ -77,9 +77,9 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 		}
 		q = per_cpu_ptr(rl->queue, i);
 
-		if(q->tokens > 0 || q->length > 0) {
-			seq_printf(s, "\t%3d   %4d   %4d   %3d   %3d   %10llu   %6llu   %10llu\n",
-					   i, q->head, q->tail, q->length, q->first_pkt_size,
+		if(q->tokens > 0 || skb_queue_len(&q->list) > 0) {
+			seq_printf(s, "\t%3d   %3d   %3d   %10llu   %6llu   %10llu\n",
+					   i, skb_queue_len(&q->list), q->first_pkt_size,
 					   q->bytes_enqueued, q->feedback_backlog, q->tokens);
 		}
 	}
@@ -114,23 +114,18 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 	struct iso_rl_queue *q = per_cpu_ptr(rl->queue, cpu);
 	enum iso_verdict verdict;
 
-	iso_rl_clock(rl);
-
 	spin_lock(&q->spinlock);
-	if(q->length == ISO_MAX_QUEUE_LEN_PKT+1) {
-		goto drop;
+
+	if(skb_queue_len(&q->list) == ISO_MAX_QUEUE_LEN_PKT+1) {
+		verdict = ISO_VERDICT_DROP;
+		goto done;
 	}
 
-	q->queue[q->tail++] = pkt;
-	q->tail = q->tail & ISO_MAX_QUEUE_LEN_PKT;
-	q->length++;
+	/* we don't need locks */
+	__skb_queue_tail(&q->list, pkt);
 	q->bytes_enqueued += skb_size(pkt);
 
 	verdict = ISO_VERDICT_SUCCESS;
-	goto done;
-
- drop:
-	verdict = ISO_VERDICT_DROP;
 
  done:
 	spin_unlock(&q->spinlock);
@@ -147,6 +142,7 @@ void iso_rl_dequeue(unsigned long _q) {
 	struct iso_rl_queue *rootq;
 	struct iso_rl *rl = q->rl;
 	enum iso_verdict verdict;
+	struct sk_buff_head *skq, list;
 
 	/* Try to borrow from the global token pool; if that fails,
 	   program the timeout for this queue */
@@ -163,18 +159,20 @@ void iso_rl_dequeue(unsigned long _q) {
 	if(unlikely(!spin_trylock(&q->spinlock)))
 		return;
 
-	if(q->length == 0)
+	skb_queue_head_init(&list);
+	skq = &q->list;
+
+	if(skb_queue_len(skq) == 0)
 		goto unlock;
 
-	pkt = q->queue[q->head];
+	pkt = skb_peek(skq);
 	sum = size = skb_size(pkt);
 	q->first_pkt_size = size;
 	timeout = 1;
 
 	while(sum <= q->tokens) {
+		pkt = __skb_dequeue(skq);
 		q->tokens -= size;
-		q->head = (q->head + 1) & ISO_MAX_QUEUE_LEN_PKT;
-		q->length--;
 		q->bytes_enqueued -= size;
 
 		if(q->feedback_backlog) {
@@ -192,23 +190,24 @@ void iso_rl_dequeue(unsigned long _q) {
 				kfree_skb(pkt);
 		}
 
-		if(q->length == 0) {
+		if(skb_queue_len(skq) == 0) {
 			timeout = 0;
 			break;
 		}
 
-		pkt = q->queue[q->head];
+		pkt = skb_peek(skq);
 		sum += (size = skb_size(pkt));
 		q->first_pkt_size = size;
 	}
 
 unlock:
+	spin_unlock(&q->spinlock);
+
 	if(rl->txc != NULL) {
 		rootq = per_cpu_ptr(rl->txc->rl.queue, q->cpu);
 		iso_rl_dequeue((unsigned long)rootq);
 	}
 
-	spin_unlock(&q->spinlock);
 	if(timeout) {
 		hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
 	}
@@ -228,7 +227,9 @@ int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 	u64 borrow;
 	int timeout = 1;
 
-	spin_lock_irqsave(&rl->spinlock, flags);
+	if(!spin_trylock_irqsave(&rl->spinlock, flags))
+		return timeout;
+
 	borrow = max(iso_rl_singleq_burst(rl), (u64)q->first_pkt_size);
 
 	if(rl->total_tokens >= borrow) {
