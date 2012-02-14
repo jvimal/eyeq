@@ -141,15 +141,16 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 	for_each_online_cpu(i) {
 		if(first) {
 			seq_printf(s, "\tcpu   head   tail   len"
-					   "   first_len   queued   fbacklog   tokens\n");
+					   "   first_len   queued   fbacklog   tokens  active?\n");
 			first = 0;
 		}
 		q = per_cpu_ptr(rl->queue, i);
 
 		if(q->tokens > 0 || q->length > 0) {
-			seq_printf(s, "\t%3d   %4d   %4d   %3d   %3d   %10llu   %6llu   %10llu\n",
+			seq_printf(s, "\t%3d   %4d   %4d   %3d   %3d   %10llu   %6llu   %10llu   %d,%d\n",
 					   i, q->head, q->tail, q->length, q->first_pkt_size,
-					   q->bytes_enqueued, q->feedback_backlog, q->tokens);
+					   q->bytes_enqueued, q->feedback_backlog, q->tokens,
+					   !list_empty(&q->active_list), hrtimer_active(q->cputimer));
 		}
 	}
 }
