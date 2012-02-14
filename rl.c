@@ -95,7 +95,7 @@ void iso_rl_init(struct iso_rl *rl) {
 		struct iso_rl_queue *q = per_cpu_ptr(rl->queue, i);
 		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, i);
 
-		q->head = q->tail = q->length = 0;
+		skb_queue_head_init(&q->list);
 		q->first_pkt_size = 0;
 		q->bytes_enqueued = 0;
 		q->bytes_xmit = 0;
@@ -131,15 +131,15 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 
 	for_each_online_cpu(i) {
 		if(first) {
-			seq_printf(s, "\tcpu   head   tail   len"
+			seq_printf(s, "\tcpu   len"
 					   "   first_len   queued   fbacklog   tokens  active?\n");
 			first = 0;
 		}
 		q = per_cpu_ptr(rl->queue, i);
 
-		if(q->tokens > 0 || q->length > 0) {
-			seq_printf(s, "\t%3d   %4d   %4d   %3d   %3d   %10llu   %6llu   %10llu   %d,%d\n",
-					   i, q->head, q->tail, q->length, q->first_pkt_size,
+		if(q->tokens > 0 || skb_queue_len(&q->list) > 0) {
+			seq_printf(s, "\t%3d   %3d   %3d   %10llu   %6llu   %10llu   %d,%d\n",
+					   i, skb_queue_len(&q->list), q->first_pkt_size,
 					   q->bytes_enqueued, q->feedback_backlog, q->tokens,
 					   !list_empty(&q->active_list), hrtimer_active(q->cputimer));
 		}
@@ -177,14 +177,13 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 
 	iso_rl_clock(rl);
 
-	if(q->length == ISO_MAX_QUEUE_LEN_PKT+1) {
+	if(skb_queue_len(&q->list) == ISO_MAX_QUEUE_LEN_PKT+1) {
 		verdict = ISO_VERDICT_DROP;
 		goto done;
 	}
 
-	q->queue[q->tail++] = pkt;
-	q->tail = q->tail & ISO_MAX_QUEUE_LEN_PKT;
-	q->length++;
+	/* we don't need locks */
+	__skb_queue_tail(&q->list, pkt);
 	q->bytes_enqueued += skb_size(pkt);
 
 	verdict = ISO_VERDICT_SUCCESS;
@@ -203,7 +202,7 @@ void iso_rl_dequeue(unsigned long _q) {
 	struct iso_rl_queue *rootq;
 	struct iso_rl *rl = q->rl;
 	enum iso_verdict verdict;
-	struct sk_buff_head list;
+	struct sk_buff_head *skq, list;
 
 	/* Try to borrow from the global token pool; if that fails,
 	   program the timeout for this queue */
@@ -215,19 +214,19 @@ void iso_rl_dequeue(unsigned long _q) {
 	}
 
 	skb_queue_head_init(&list);
+	skq = &q->list;
 
-	if(q->length == 0)
+	if(skb_queue_len(skq) == 0)
 		goto unlock;
 
-	pkt = q->queue[q->head];
+	pkt = skb_peek(skq);
 	sum = size = skb_size(pkt);
 	q->first_pkt_size = size;
 	timeout = 1;
 
 	while(sum <= q->tokens) {
+		pkt = __skb_dequeue(skq);
 		q->tokens -= size;
-		q->head = (q->head + 1) & ISO_MAX_QUEUE_LEN_PKT;
-		q->length--;
 		q->bytes_enqueued -= size;
 
 		if(q->feedback_backlog) {
@@ -240,20 +239,15 @@ void iso_rl_dequeue(unsigned long _q) {
 			q->bytes_xmit += size;
 		} else {
 			/* Enqueue in parent tx class's rate limiter */
-#if 0
-			verdict = iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
-			if(verdict == ISO_VERDICT_DROP)
-				kfree_skb(pkt);
-#endif
 			__skb_queue_tail(&list, pkt);
 		}
 
-		if(q->length == 0) {
+		if(skb_queue_len(skq) == 0) {
 			timeout = 0;
 			break;
 		}
 
-		pkt = q->queue[q->head];
+		pkt = skb_peek(skq);
 		sum += (size = skb_size(pkt));
 		q->first_pkt_size = size;
 	}
@@ -299,7 +293,9 @@ inline int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 	u64 borrow;
 	int timeout = 1;
 
-	spin_lock_irqsave(&rl->spinlock, flags);
+	if(!spin_trylock_irqsave(&rl->spinlock, flags))
+		return timeout;
+
 	borrow = max(iso_rl_singleq_burst(rl), (u64)q->first_pkt_size);
 
 	if(rl->total_tokens >= borrow) {
