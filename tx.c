@@ -43,6 +43,8 @@ void iso_tx_exit() {
 			iso_txc_free(txc);
 		}
 	}
+
+	free_percpu(rlcb);
 }
 
 inline void iso_txc_tick() {

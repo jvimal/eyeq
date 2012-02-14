@@ -39,7 +39,7 @@ void iso_rl_exit() {
 		hrtimer_cancel(&cb->timer);
 	}
 
-	free_percpu(rlcb);
+	//free_percpu(rlcb);
 }
 
 void iso_rl_xmit_tasklet(unsigned long _cb) {
