@@ -66,11 +66,11 @@ void iso_rl_init(struct iso_rl *);
 void iso_rl_free(struct iso_rl *);
 void iso_rl_show(struct iso_rl *, struct seq_file *);
 static inline int iso_rl_should_refill(struct iso_rl *);
-void iso_rl_clock(struct iso_rl *);
+inline void iso_rl_clock(struct iso_rl *);
 enum iso_verdict iso_rl_enqueue(struct iso_rl *, struct sk_buff *, int cpu);
 void iso_rl_dequeue(unsigned long _q);
 enum hrtimer_restart iso_rl_timeout(struct hrtimer *);
-int iso_rl_borrow_tokens(struct iso_rl *, struct iso_rl_queue *);
+inline int iso_rl_borrow_tokens(struct iso_rl *, struct iso_rl_queue *);
 static inline ktime_t iso_rl_gettimeout(void);
 static inline u64 iso_rl_singleq_burst(struct iso_rl *);
 

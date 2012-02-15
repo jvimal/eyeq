@@ -86,7 +86,7 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 }
 
 /* This function could be called from HARDIRQ context */
-void iso_rl_clock(struct iso_rl *rl) {
+inline void iso_rl_clock(struct iso_rl *rl) {
 	unsigned long flags;
 	u64 cap, us;
 	ktime_t now;
@@ -228,7 +228,7 @@ enum hrtimer_restart iso_rl_timeout(struct hrtimer *timer) {
 	return HRTIMER_NORESTART;
 }
 
-int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
+inline int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 	unsigned long flags;
 	u64 borrow;
 	int timeout = 1;
