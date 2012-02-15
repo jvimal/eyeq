@@ -143,10 +143,8 @@ void iso_rl_dequeue(unsigned long _q) {
 
 	if(unlikely(q->tokens < q->first_pkt_size)) {
 		timeout = iso_rl_borrow_tokens(rl, q);
-		if(timeout) {
-			hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL_PINNED);
-			return;
-		}
+		if(timeout)
+			goto timeout;
 	}
 
 	/* Some other thread is trying to dequeue, so let's not spin unnecessarily */
@@ -214,6 +212,7 @@ unlock:
 	}
 
 	if(timeout) {
+	timeout:
 		hrtimer_start(&q->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL_PINNED);
 	}
 }
