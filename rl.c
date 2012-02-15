@@ -241,12 +241,6 @@ inline int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 	if(rl->total_tokens >= borrow) {
 		rl->total_tokens -= borrow;
 		q->tokens += borrow;
-		/* XXX: Because we borrow when we are running low of tokens,
-		   we don't need to cap */
-		/*
-		  cap = max((rl->rate * ISO_MAX_BURST_TIME_US) >> 3, (u64)ISO_MIN_BURST_BYTES);
-		  q->tokens = min(cap, q->tokens);
-		*/
 		timeout = 0;
 	}
 
