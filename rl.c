@@ -185,9 +185,7 @@ void iso_rl_dequeue(unsigned long _q) {
 			q->bytes_xmit += size;
 		} else {
 			/* Enqueue in parent tx class's rate limiter */
-			verdict = iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
-			if(verdict == ISO_VERDICT_DROP)
-				kfree_skb(pkt);
+			__skb_queue_tail(&list, pkt);
 		}
 
 		if(skb_queue_len(skq) == 0) {
@@ -204,6 +202,14 @@ unlock:
 	spin_unlock(&q->spinlock);
 
 	if(rl->txc != NULL) {
+		/* Now transfer the dequeued packets to the parent's queue */
+		while((pkt = __skb_dequeue(&list)) != NULL) {
+			verdict = iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
+			if(verdict == ISO_VERDICT_DROP)
+				kfree_skb(pkt);
+		}
+
+		/* Trigger the parent dequeue */
 		rootq = per_cpu_ptr(rl->txc->rl.queue, q->cpu);
 		iso_rl_dequeue((unsigned long)rootq);
 	}
