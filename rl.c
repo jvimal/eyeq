@@ -18,7 +18,7 @@ int iso_rl_prep() {
 		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, cpu);
 		spin_lock_init(&cb->spinlock);
 
-		hrtimer_init(&cb->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+		hrtimer_init(&cb->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED);
 		cb->timer.function = iso_rl_timeout;
 
 		tasklet_init(&cb->xmit_timeout, iso_rl_xmit_tasklet, (unsigned long)cb);
@@ -86,7 +86,7 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 
 	if(!list_empty(&cb->active_list) && !iso_exiting) {
 		dt = iso_rl_gettimeout();
-		hrtimer_start(&cb->timer, dt, HRTIMER_MODE_REL);
+		hrtimer_start(&cb->timer, dt, HRTIMER_MODE_REL_PINNED);
 	}
 }
 
@@ -302,7 +302,7 @@ timeout:
 			spin_unlock_irqrestore(&cb->spinlock, flags);
 		}
 
-		hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL);
+		hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL_PINNED);
 	}
 }
 
