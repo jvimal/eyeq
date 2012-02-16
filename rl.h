@@ -129,7 +129,7 @@ static inline int skb_has_feedback(struct sk_buff *skb) {
 }
 
 static inline ktime_t iso_rl_gettimeout() {
-	return ktime_set(0, ISO_TOKENBUCKET_TIMEOUT_NS);
+	return ktime_set(0, ISO_TOKENBUCKET_TIMEOUT_NS << 1);
 }
 
 
