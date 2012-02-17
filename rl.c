@@ -135,7 +135,7 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 	struct iso_rl_queue *q;
 	int i, first = 1;
 
-	seq_printf(s, "ip %x   rate %llu   total_tokens %llu   last %llx   %p\n",
+	seq_printf(s, "ip %x   rate %u   total_tokens %llu   last %llx   %p\n",
 			   rl->ip, rl->rate, rl->total_tokens, *(u64 *)&rl->last_update_time, rl);
 
 	for_each_online_cpu(i) {
@@ -172,7 +172,7 @@ void iso_rl_clock(struct iso_rl *rl) {
 	rl->total_tokens += (rl->rate * us) >> 3;
 
 	/* This is needed if we have TSO.  MIN_BURST_BYTES will be ~64K */
-	cap = max((rl->rate * ISO_MAX_BURST_TIME_US) >> 3, (u64)ISO_MIN_BURST_BYTES);
+	cap = max((rl->rate * ISO_MAX_BURST_TIME_US) >> 3, (u32)ISO_MIN_BURST_BYTES);
 	rl->total_tokens = min(cap, rl->total_tokens);
 
 	rl->last_update_time = now;

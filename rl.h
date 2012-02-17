@@ -49,14 +49,15 @@ struct iso_rl_queue {
 };
 
 struct iso_rl {
+	u32 rate;
+	spinlock_t spinlock;
+
 	__le32 ip;
-	u64 rate;
 	u64 total_tokens;
 	u64 accum_xmit;
 	u64 accum_enqueued;
 
 	ktime_t last_update_time;
-	spinlock_t spinlock;
 
 	struct iso_rl_queue __percpu *queue;
 	struct hlist_node hash_node;
