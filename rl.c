@@ -50,7 +50,6 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 	ktime_t last;
 	ktime_t dt;
 	int count = 0;
-	unsigned long flags;
 
 #define budget 500
 
@@ -71,15 +70,7 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 			break;
 		}
 
-		if(spin_trylock(&q->spinlock)) {
-			spin_lock_irqsave(&cb->spinlock, flags);
-			list_del_init(&q->active_list);
-			spin_unlock_irqrestore(&cb->spinlock, flags);
-			spin_unlock(&q->spinlock);
-		} else {
-			continue;
-		}
-
+		list_del_init(&q->active_list);
 		iso_rl_clock(q->rl);
 		iso_rl_dequeue((unsigned long)q);
 	}
@@ -186,8 +177,6 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 
 	iso_rl_clock(rl);
 
-	spin_lock(&q->spinlock);
-
 	if(q->length == ISO_MAX_QUEUE_LEN_PKT+1) {
 		verdict = ISO_VERDICT_DROP;
 		goto done;
@@ -201,7 +190,6 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 	verdict = ISO_VERDICT_SUCCESS;
 
  done:
-	spin_unlock(&q->spinlock);
 	return verdict;
 }
 
@@ -225,10 +213,6 @@ void iso_rl_dequeue(unsigned long _q) {
 		if(timeout)
 			goto timeout;
 	}
-
-	/* Some other thread is trying to dequeue, so let's not spin unnecessarily */
-	if(unlikely(!spin_trylock(&q->spinlock)))
-		return;
 
 	skb_queue_head_init(&list);
 
@@ -275,7 +259,6 @@ void iso_rl_dequeue(unsigned long _q) {
 	}
 
 unlock:
-	spin_unlock(&q->spinlock);
 
 	if(rl->txc != NULL) {
 		/* Now transfer the dequeued packets to the parent's queue */
@@ -293,13 +276,10 @@ unlock:
 timeout:
 	if(timeout && !iso_exiting) {
 		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, q->cpu);
-		unsigned long flags;
 
 		/* don't recursively add! */
 		if(list_empty(&q->active_list)) {
-			spin_lock_irqsave(&cb->spinlock, flags);
 			list_add_tail(&q->active_list, &cb->active_list);
-			spin_unlock_irqrestore(&cb->spinlock, flags);
 		}
 
 		hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL_PINNED);
