@@ -276,7 +276,8 @@ timeout:
 			list_add_tail(&q->active_list, &cb->active_list);
 		}
 
-		hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL_PINNED);
+		if(!hrtimer_active(&cb->timer))
+			hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL_PINNED);
 	}
 }
 
