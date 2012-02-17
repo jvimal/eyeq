@@ -154,7 +154,7 @@ static inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
 	u32 addr = 0;
 
 	eth = eth_hdr(skb);
-	if(likely(eth->h_proto == htons(ETH_P_IP))) {
+	if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
 		addr = ip_hdr(skb)->saddr;
 	}
 
@@ -198,7 +198,7 @@ static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
 	struct ethhdr *eth = NULL;
 	klass = 0;
 	eth = eth_hdr(skb);
-	if(likely(eth->h_proto == htons(ETH_P_IP))) {
+	if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
 		klass = ip_hdr(skb)->daddr;
 	}
 	return klass;

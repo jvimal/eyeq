@@ -27,8 +27,11 @@ static void iso_exit(void);
 void iso_rx_hook_exit(void);
 void iso_tx_hook_exit(void);
 
+int iso_exiting;
+
 static int iso_init() {
 	int i, ret = -1;
+	iso_exiting = 0;
 
 	if(iso_param_dev == NULL) {
 		/*
@@ -77,6 +80,9 @@ static int iso_init() {
 }
 
 static void iso_exit() {
+	iso_exiting = 1;
+	mb();
+
 	iso_tx_hook_exit();
 	iso_rx_hook_exit();
 

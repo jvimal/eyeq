@@ -11,6 +11,7 @@ struct list_head txc_list;
 ktime_t txc_last_update_time;
 int txc_total_weight;
 spinlock_t txc_spinlock;
+extern int iso_exiting;
 
 int iso_tx_hook_init(void);
 
@@ -20,6 +21,8 @@ int iso_tx_init() {
 	INIT_LIST_HEAD(&txc_list);
 	txc_last_update_time = ktime_get();
 	spin_lock_init(&txc_spinlock);
+	if(iso_rl_prep())
+		return -1;
 
 	txc_total_weight = 0;
 	return iso_tx_hook_init();
@@ -31,6 +34,8 @@ void iso_tx_exit() {
 	struct hlist_node *node, *nextnode;
 	struct iso_tx_class *txc;
 
+	iso_rl_exit();
+
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &iso_tx_bucket[i];
 		hlist_for_each_entry_safe(txc, nextnode, node, head, hash_node) {
@@ -38,6 +43,8 @@ void iso_tx_exit() {
 			iso_txc_free(txc);
 		}
 	}
+
+	free_percpu(rlcb);
 }
 
 inline void iso_txc_tick() {
@@ -196,7 +203,7 @@ struct iso_per_dest_state
 
 	eth = eth_hdr(skb);
 
-	if(unlikely(eth->h_proto != htons(ETH_P_IP))) {
+	if(unlikely(eth->h_proto != __constant_htons(ETH_P_IP))) {
 		/* TODO: l2 packet, map all to a single rate state and RL */
 		/* Right now, we just pass it thru */
 		return NULL;
@@ -437,24 +444,7 @@ void iso_txc_free(struct iso_tx_class *txc) {
 		atomic_dec(&txc->vq->refcnt);
 	}
 
-	/* Kill the default rate limiter */
-	for_each_possible_cpu(i) {
-		struct iso_rl_queue *q = per_cpu_ptr(txc->rl.queue, i);
-		hrtimer_cancel(&q->timer);
-		tasklet_kill(&q->xmit_timeout);
-		/* TODO: This caused a crash.  Dunno why! */
-		/*
-		spin_lock_irqsave(&q->spinlock, flags);
-		for(j = q->head; j != q->tail; j++) {
-			j &= ISO_MAX_QUEUE_LEN_PKT;
-			kfree_skb(q->queue[j]);
-		}
-		q->head = q->tail = 0;
-		spin_unlock_irqrestore(&q->spinlock, flags);
-		*/
-	}
 	free_percpu(txc->rl.queue);
-
 	kfree(txc);
 }
 

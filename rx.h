@@ -26,7 +26,7 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 	struct iphdr *iph_to, *iph_from;
 
 	eth_from = eth_hdr(pkt);
-	if(unlikely(eth_from->h_proto != htons(ETH_P_IP)))
+	if(unlikely(eth_from->h_proto != __constant_htons(ETH_P_IP)))
 		return 0;
 
 	/* XXX: netdev_alloc_skb's meant to allocate packets for receiving.
@@ -36,7 +36,7 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 	if(likely(skb)) {
 		skb_set_queue_mapping(skb, 0);
 		skb->len = ISO_FEEDBACK_PACKET_SIZE;
-		skb->protocol = htons(ETH_P_IP);
+		skb->protocol = __constant_htons(ETH_P_IP);
 		skb->pkt_type = PACKET_OUTGOING;
 
 		skb_reset_mac_header(skb);
@@ -55,7 +55,7 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 		iph_to->ihl = 5;
 		iph_to->version = 4;
 		iph_to->tos = 0x2 | (bit ? ISO_ECN_REFLECT_MASK : 0);
-		iph_to->tot_len = htons(ISO_FEEDBACK_HEADER_SIZE - 14);
+		iph_to->tot_len = __constant_htons(ISO_FEEDBACK_HEADER_SIZE);
 		iph_to->id = iph_from->id;
 		iph_to->frag_off = 0;
 		iph_to->ttl = ISO_FEEDBACK_PACKET_TTL;
@@ -82,7 +82,7 @@ static inline int iso_is_generated_feedback(struct sk_buff *skb) {
 	struct ethhdr *eth;
 	struct iphdr *iph;
 	eth = eth_hdr(skb);
-	if(likely(eth->h_proto == htons(ETH_P_IP))) {
+	if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
 		iph = ip_hdr(skb);
 		if(unlikely(iph->protocol == ISO_FEEDBACK_PACKET_IPPROTO))
 			return 1;

@@ -38,15 +38,14 @@ struct iso_rl_queue {
 
 	u64 tokens;
 	spinlock_t spinlock;
-	struct tasklet_struct xmit_timeout;
-	struct hrtimer timer;
 
 	int cpu;
 	struct iso_rl *rl;
+	struct hrtimer *cputimer;
+	struct list_head active_list;
 };
 
 struct iso_rl {
-	/* Try to keep rate and spinlock in the same cacheline */
 	u32 rate;
 	spinlock_t spinlock;
 
@@ -63,6 +62,22 @@ struct iso_rl {
 
 	struct iso_tx_class *txc;
 };
+
+/* The per-cpu control block for rate limiters */
+struct iso_rl_cb {
+	spinlock_t spinlock;
+	struct hrtimer timer;
+	struct tasklet_struct xmit_timeout;
+	struct list_head active_list;
+	ktime_t last;
+	u64 avg_us;
+	int cpu;
+};
+
+int iso_rl_prep(void);
+void iso_rl_exit(void);
+void iso_rl_xmit_tasklet(unsigned long _cb);
+extern struct iso_rl_cb __percpu *rlcb;
 
 void iso_rl_init(struct iso_rl *);
 void iso_rl_free(struct iso_rl *);
@@ -90,7 +105,7 @@ static inline int skb_set_feedback(struct sk_buff *skb) {
 	u8 newdscp;
 
 	eth = eth_hdr(skb);
-	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
+	if(unlikely(eth->h_proto != __constant_htons(ETH_P_IP)))
 		return 1;
 
 	iph = ip_hdr(skb);
@@ -104,7 +119,7 @@ static inline int skb_has_feedback(struct sk_buff *skb) {
 	struct iphdr *iph;
 
 	eth = eth_hdr(skb);
-	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
+	if(unlikely(eth->h_proto != __constant_htons(ETH_P_IP)))
 		return 0;
 
 	iph = ip_hdr(skb);
