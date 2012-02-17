@@ -203,7 +203,7 @@ struct iso_per_dest_state
 
 	eth = eth_hdr(skb);
 
-	if(unlikely(eth->h_proto != htons(ETH_P_IP))) {
+	if(unlikely(eth->h_proto != __constant_htons(ETH_P_IP))) {
 		/* TODO: l2 packet, map all to a single rate state and RL */
 		/* Right now, we just pass it thru */
 		return NULL;

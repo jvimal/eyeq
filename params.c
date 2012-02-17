@@ -38,7 +38,7 @@ int ISO_FEEDBACK_INTERVAL_US = 100;
 // TODO: We are assuming that we don't need to do any VLAN tag
 // ourselves
 const int ISO_FEEDBACK_PACKET_SIZE = 64;
-const u16 ISO_FEEDBACK_HEADER_SIZE = 14 + 20;
+const u16 ISO_FEEDBACK_HEADER_SIZE = 20;
 const u8 ISO_FEEDBACK_PACKET_TTL = 64;
 int ISO_FEEDBACK_PACKET_IPPROTO = 143; // should be some unused protocol
 

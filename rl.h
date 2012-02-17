@@ -108,7 +108,7 @@ static inline int skb_set_feedback(struct sk_buff *skb) {
 	u8 newdscp;
 
 	eth = eth_hdr(skb);
-	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
+	if(unlikely(eth->h_proto != __constant_htons(ETH_P_IP)))
 		return 1;
 
 	iph = ip_hdr(skb);
@@ -122,7 +122,7 @@ static inline int skb_has_feedback(struct sk_buff *skb) {
 	struct iphdr *iph;
 
 	eth = eth_hdr(skb);
-	if(unlikely(eth->h_proto != htons(ETH_P_IP)))
+	if(unlikely(eth->h_proto != __constant_htons(ETH_P_IP)))
 		return 0;
 
 	iph = ip_hdr(skb);
