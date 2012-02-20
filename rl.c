@@ -218,6 +218,9 @@ void iso_rl_dequeue(unsigned long _q) {
 	q->first_pkt_size = size;
 	timeout = 1;
 
+	/* XXX: this should be size <= q->tokens, but it somehow works.
+	 * Maybe it has better fairness :-? */
+
 	while(sum <= q->tokens) {
 		pkt = __skb_dequeue(skq);
 		q->tokens -= size;
