@@ -103,7 +103,11 @@ void monitor_loop() {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    if(argc > 1) {
+        interval_us = max(1000, atoi(argv[1]));
+    }
+
     fp = fopen(csv_file, "r");
     if(fp == NULL)
         die("CSV file not found\n");
