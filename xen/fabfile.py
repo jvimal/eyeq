@@ -15,12 +15,30 @@ vm31 = "192.168.2.211"
 vm32 = "192.168.2.212"
 vm33 = "192.168.2.213"
 
+# On 1G network
+if 1:
+    vm11 = "192.168.1.212"
+    vm12 = "192.168.1.213"
+
+    vm21 = "192.168.1.221"
+    vm22 = "192.168.1.222"
+
+    vm31 = "192.168.1.231"
+    vm32 = "192.168.1.232"
+    vm33 = "192.168.1.233"
+
 guest = [vm11, vm12, vm21, vm22, vm31, vm32, vm33]
 
 iface = {
   l1: "eth2",
   l2: "eth2",
   l3: "eth3",
+
+  # 1G
+  l1: "eth1",
+  l2: "eth1",
+  l3: "eth0",
+
   vm31 : "eth0", # l3
   vm32 : "eth0", # l3
   vm33 : "eth0", # l3
@@ -100,6 +118,23 @@ def txq():
 
 @task
 @roles('guest')
+@parallel
+def apt():
+    sources = '/etc/apt/sources.list'
+    put(sources, sources)
+    # More reliable
+    run("echo 'prepend domain-name-servers 8.8.8.8;' >> /etc/dhcp3/dhclient.conf")
+    run("dhclient eth0")
+    #run("echo nameserver 8.8.8.8 >> /etc/resolv.conf")
+
+@task
+@roles('guest')
+@parallel
+def nfs_install():
+    run("apt-get -y install nfs-kernel-server nfs-common portmap")
+
+@task
+@roles('guest')
 @parallel(pool_size=5)
 def copy_scripts():
     for f,perm in scripts:
@@ -141,12 +176,20 @@ def setup():
     for ip in tenants[env.host]:
         wt = tenant_weights[env.host][ip]
         create_ip_tenant(ip, wt)
+    set_1g_params()
 
 @task
 @roles('root')
 @parallel
 def remove():
     run("rmmod perfiso")
+
+@task
+@roles('root')
+@parallel
+def set_10G():
+    eth = iface[env.host]
+    run("ethtool -s %s speed 10000 duplex full" % eth)
 
 def create_ip_tenant(ip, w=1):
     d = '/sys/module/perfiso/parameters'
@@ -155,3 +198,21 @@ def create_ip_tenant(ip, w=1):
     run("echo associate txc %s vq %s > %s/assoc_txc_vq" % (ip, ip, d))
     run("echo %s weight %s > %s/set_vq_weight" % (ip, w, d))
 
+def set_param(name, value):
+    run("echo %s > /proc/sys/perfiso/%s" % (value, name))
+
+def set_1g_params():
+    set_param("ISO_MAX_TX_RATE", "1000")
+    set_param("ISO_TOKENBUCKET_TIMEOUT_NS", "100")
+    set_param("ISO_VQ_MARK_THRESH_BYTES", "30000")
+    set_param("ISO_VQ_DRAIN_RATE_MBPS", "900")
+    set_param("ISO_VQ_UPDATE_INTERVAL_US", "1")
+    set_param("ISO_MIN_BURST_BYTES", "3000")
+
+# Doesn't work for emulex NICs
+@task
+@roles('root')
+@parallel
+def set_1G():
+    eth = iface[env.host]
+    run("ethtool -s %s speed 1000 duplex full" % eth)
