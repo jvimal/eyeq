@@ -54,7 +54,7 @@ env.roledefs = {
   'root': root,
   'guest': guest,
   'src': [vm31, vm32, vm21],
-  'dst': [vm11, vm12],
+  'dst': [vm11, vm12, vm32],
 }
 
 env.always_use_pty = False
@@ -78,7 +78,7 @@ tenants = {
 tenant_weights = {
   l1: {vm11: 1, vm12: 4},
   l2: {vm21: 1, vm22: 4},
-  l3: {vm31: 1, vm32: 1, vm33: 1}
+  l3: {vm31: 1, vm32: 1, vm33: 4}
 }
 
 # Traffic matrix
@@ -208,6 +208,22 @@ def set_1g_params():
     set_param("ISO_VQ_DRAIN_RATE_MBPS", "900")
     set_param("ISO_VQ_UPDATE_INTERVAL_US", "1")
     set_param("ISO_MIN_BURST_BYTES", "3000")
+
+@task
+@hosts([vm21])
+def run_nfs_client():
+    run("~/vimal/nfs-xput.sh")
+
+@task
+@hosts([vm11])
+def run_cross_traffic():
+    _runbg("iperf -c %s -t 100 -i 2 -b 2G" % vm32)
+
+@task
+@parallel
+def run_nfs_test():
+    execute(run_cross_traffic)
+    execute(run_nfs_client)
 
 # Doesn't work for emulex NICs
 @task
