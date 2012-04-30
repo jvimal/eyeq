@@ -97,7 +97,7 @@ static inline int skb_size(struct sk_buff *skb) {
 	return ETH_HLEN + skb->len;
 }
 
-#define ISO_ECN_REFLECT_MASK (1 << 3)
+#define ISO_ECN_REFLECT_MASK (1 << 0)
 
 static inline int skb_set_feedback(struct sk_buff *skb) {
 	struct ethhdr *eth;
