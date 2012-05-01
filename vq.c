@@ -87,7 +87,9 @@ void iso_vq_free(struct iso_vq *vq) {
 
 void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	ktime_t now = ktime_get();
-	u64 dt = ktime_us_delta(now, vq_last_update_time);
+	ktime_t last = vq_last_update_time;
+
+	u64 dt = ktime_us_delta(now, last);
 	unsigned long flags;
 	int cpu = smp_processor_id();
 	struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, cpu);
@@ -95,8 +97,11 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 
 	if(unlikely(dt > ISO_VQ_UPDATE_INTERVAL_US)) {
 		if(spin_trylock_irqsave(&vq_spinlock, flags)) {
-			iso_vq_tick(dt);
-			vq_last_update_time = now;
+			/* Check if someone else sneaked in and updated. */
+			if(vq_last_update_time.tv64 == last.tv64) {
+				vq_last_update_time = now;
+				iso_vq_tick(dt);
+			}
 			spin_unlock_irqrestore(&vq_spinlock, flags);
 		}
 	}
