@@ -323,7 +323,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 
 void iso_txc_allocator(struct work_struct *work) {
 	struct iso_tx_class *txc = container_of(work, struct iso_tx_class, allocator);
-	iso_txc_prealloc(txc, 256);
+	iso_txc_prealloc(txc, 32);
 }
 
 /* Can sleep */
@@ -338,9 +338,9 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 	iso_txc_init(txc);
 	txc->klass = klass;
 
-	/* Preallocate some perdest state and rate limiters.  256 entries
+	/* Preallocate some perdest state and rate limiters.  32 entries
 	 * ought to be enough for everybody ;) */
-	iso_txc_prealloc(txc, 256);
+	iso_txc_prealloc(txc, 32);
 
 	rcu_read_lock();
 	head = iso_txc_find_bucket(klass);
