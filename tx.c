@@ -82,6 +82,12 @@ inline void iso_txc_tick() {
 
 		/* TODO: Clamp rates */
 		for_each_txc(txc) {
+			/* Quick shortcut to disable TX rate limiting */
+			if(unlikely(ISO_VQ_DRAIN_RATE_MBPS > 10000)) {
+				txc->rl.rate = ISO_MAX_TX_RATE;
+				continue;
+			}
+
 			if(txc->active) {
 				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / active_weight;
 				txc->vrate = txc->rl.rate;
