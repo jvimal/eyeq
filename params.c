@@ -26,7 +26,7 @@ int ISO_VQ_MARK_THRESH_BYTES = 256 * 1024;
 int ISO_VQ_MAX_BYTES = 3000 * 1024;
 int ISO_RFAIR_INITIAL = 10000;
 int ISO_MIN_RFAIR = 1;
-int ISO_RFAIR_INCREMENT = 1;
+int ISO_RFAIR_INCREMENT = 20;
 int ISO_RFAIR_DECREASE_INTERVAL_US = 500;
 int ISO_RFAIR_INCREASE_INTERVAL_US = 500;
 int ISO_RFAIR_FEEDBACK_TIMEOUT_US = 1000 * 1000;
@@ -47,8 +47,9 @@ int ISO_RL_UPDATE_INTERVAL_US = 20;
 int ISO_BURST_FACTOR = 8;
 int ISO_VQ_UPDATE_INTERVAL_US = 25;
 int ISO_TXC_UPDATE_INTERVAL_US = 500;
+int ISO_VQ_REFRESH_INTERVAL_US = 1000;
 
-struct iso_param iso_params[32] = {
+struct iso_param iso_params[64] = {
   {"ISO_FALPHA", &ISO_FALPHA },
   {"ISO_MAX_TX_RATE", &ISO_MAX_TX_RATE },
   {"ISO_VQ_DRAIN_RATE_MBPS", &ISO_VQ_DRAIN_RATE_MBPS },
@@ -75,6 +76,7 @@ struct iso_param iso_params[32] = {
   {"ISO_BURST_FACTOR", &ISO_BURST_FACTOR },
   {"ISO_VQ_UPDATE_INTERVAL_US", &ISO_VQ_UPDATE_INTERVAL_US },
   {"ISO_TXC_UPDATE_INTERVAL_US", &ISO_TXC_UPDATE_INTERVAL_US },
+  {"ISO_VQ_REFRESH_INTERVAL_US", &ISO_VQ_REFRESH_INTERVAL_US },
   {"", NULL},
 };
 
@@ -319,6 +321,7 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
 	spin_lock_irqsave(&vq_spinlock, flags);
 	vq->weight = (u64)weight;
 	spin_unlock_irqrestore(&vq_spinlock, flags);
+	iso_vq_calculate_rates();
 
 	printk(KERN_INFO "perfiso: Set weight %d for vq %s\n",
 		   weight, _vqc);

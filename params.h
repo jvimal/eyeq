@@ -30,6 +30,7 @@ extern int IsoGlobalEnabled;
 extern int IsoAutoGenerateFeedback;
 extern int ISO_FEEDBACK_INTERVAL_US;
 extern int ISO_TXC_UPDATE_INTERVAL_US;
+extern int ISO_VQ_REFRESH_INTERVAL_US;
 
 // TODO: We are assuming that we don't need to do any VLAN tag
 // ourselves
@@ -57,7 +58,7 @@ struct iso_param {
 	int *ptr;
 };
 
-extern struct iso_param iso_params[32];
+extern struct iso_param iso_params[64];
 extern int iso_num_params;
 
 int iso_params_init(void);

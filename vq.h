@@ -43,10 +43,11 @@ struct iso_vq {
 
 	u64 weight;
 
-	ktime_t last_update_time;
+	ktime_t last_update_time, last_borrow_time;
 
 	struct iso_vq_stats __percpu *percpu_stats;
 	spinlock_t spinlock;
+	u64 tokens;
 
 	iso_class_t klass;
 	struct list_head list;
@@ -58,7 +59,8 @@ struct iso_vq {
 
 extern struct list_head vq_list;
 extern s64 vq_total_tokens;
-extern ktime_t vq_last_update_time;
+extern ktime_t vq_last_update_time, vq_last_check_time;
+extern atomic_t vq_active_rate;
 
 #define for_each_vq(vq) list_for_each_entry_safe(vq, vq_next, &vq_list, list)
 #define ISO_VQ_DEFAULT_RATE_MBPS (100) /* This parameter shouldn't matter */
@@ -73,6 +75,9 @@ static inline int iso_vq_active(struct iso_vq *);
 void iso_vq_tick(u64);
 void iso_vq_drain(struct iso_vq *, u64);
 static inline int iso_vq_over_limits(struct iso_vq *);
+inline void iso_vq_global_tick(void);
+void iso_vq_calculate_rates(void);
+void iso_vq_check_idle(void);
 
 static inline struct iso_vq *iso_vq_find(iso_class_t);
 void iso_vq_show(struct iso_vq *, struct seq_file *);

@@ -3,16 +3,21 @@
 
 s64 vq_total_tokens;
 ktime_t vq_last_update_time;
+ktime_t vq_last_check_time;
 spinlock_t vq_spinlock;
 struct list_head vq_list;
 struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
+atomic_t vq_active_rate;
 
 void iso_vqs_init() {
 	int i;
 	INIT_LIST_HEAD(&vq_list);
 	vq_total_tokens = 0;
 	vq_last_update_time = ktime_get();
+	vq_last_check_time = ktime_get();
+
 	spin_lock_init(&vq_spinlock);
+	atomic_set(&vq_active_rate, 0);
 
 	for(i = 0; i < ISO_MAX_VQ_BUCKETS; i++) {
 		INIT_HLIST_HEAD(&vq_bucket[i]);
@@ -40,9 +45,25 @@ struct iso_vq *iso_vq_alloc(iso_class_t klass) {
 
 		list_add_tail_rcu(&vq->list, &vq_list);
 		hlist_add_head_rcu(&vq->hash_node, head);
+		iso_vq_calculate_rates();
 		rcu_read_unlock();
 	}
 	return vq;
+}
+
+void iso_vq_calculate_rates() {
+	u32 total_weight = 0;
+	struct iso_vq *vq, *vq_next;
+
+	for_each_vq(vq) {
+		total_weight += vq->weight;
+	}
+
+	if(total_weight > 0) {
+		for_each_vq(vq) {
+			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / total_weight;
+		}
+	}
 }
 
 int iso_vq_init(struct iso_vq *vq) {
@@ -54,7 +75,7 @@ int iso_vq_init(struct iso_vq *vq) {
 	vq->total_bytes_queued = 0;
 	vq->backlog = 0;
 	vq->weight = 1;
-	vq->last_update_time = ktime_get();
+	vq->last_update_time = vq->last_borrow_time = ktime_get();
 
 	vq->percpu_stats = alloc_percpu(struct iso_vq_stats);
 	if(vq->percpu_stats == NULL)
@@ -68,6 +89,8 @@ int iso_vq_init(struct iso_vq *vq) {
 	}
 
 	spin_lock_init(&vq->spinlock);
+	vq->tokens = 0;
+
 	INIT_LIST_HEAD(&vq->list);
 	INIT_HLIST_NODE(&vq->hash_node);
 
@@ -85,9 +108,32 @@ void iso_vq_free(struct iso_vq *vq) {
 	kfree(vq);
 }
 
+void iso_vq_check_idle() {
+	struct iso_vq *vq, *vq_next;
+	ktime_t now = ktime_get();
+
+	for_each_vq(vq) {
+		if(!spin_trylock(&vq->spinlock))
+			continue;
+
+		if(vq->active && ktime_us_delta(now, vq->last_update_time) > 10000) {
+			vq->active = 0;
+			atomic_sub(vq->rate, &vq_active_rate);
+		}
+
+		spin_unlock(&vq->spinlock);
+	}
+
+	vq_last_check_time = now;
+}
+
 void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	ktime_t now = ktime_get();
-	ktime_t last = vq_last_update_time;
+	ktime_t last = vq->last_update_time;
+
+	if(ktime_us_delta(now, vq_last_check_time) > 10000) {
+		iso_vq_check_idle();
+	}
 
 	u64 dt = ktime_us_delta(now, last);
 	unsigned long flags;
@@ -96,13 +142,9 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	u32 len = skb_size(pkt);
 
 	if(unlikely(dt > ISO_VQ_UPDATE_INTERVAL_US)) {
-		if(spin_trylock_irqsave(&vq_spinlock, flags)) {
-			/* Check if someone else sneaked in and updated. */
-			if(vq_last_update_time.tv64 == last.tv64) {
-				vq_last_update_time = now;
-				iso_vq_tick(dt);
-			}
-			spin_unlock_irqrestore(&vq_spinlock, flags);
+		if(spin_trylock_irqsave(&vq->spinlock, flags)) {
+			iso_vq_drain(vq, dt);
+			spin_unlock_irqrestore(&vq->spinlock, flags);
 		}
 	}
 
@@ -137,13 +179,30 @@ void iso_vq_tick(u64 dt) {
 	}
 }
 
-/* called with vq's global lock */
-void iso_vq_drain(struct iso_vq *vq, u64 dt) {
-	u64 max_drain;
-	u64 can_drain;
-	int i;
+/* Called with the global lock */
+inline void iso_vq_global_tick(void) {
+	u64 dtokens, dt, maxtokens;
+	ktime_t now = ktime_get();
 
-	max_drain = (vq->rate * dt) >> 3;
+	dt = ktime_us_delta(now, vq_last_update_time);
+
+	dtokens = (ISO_VQ_DRAIN_RATE_MBPS * dt) >> 3;
+	maxtokens = (ISO_VQ_DRAIN_RATE_MBPS * ISO_VQ_REFRESH_INTERVAL_US) >> 3;
+
+	vq_total_tokens = min(maxtokens, vq_total_tokens + dtokens);
+	vq_last_update_time = now;
+}
+
+
+
+/* called with vq's lock */
+void iso_vq_drain(struct iso_vq *vq, u64 dt) {
+	u64 can_drain, max_drain, max_borrow, min_borrow;
+	int i, factor;
+	ktime_t now = ktime_get();
+
+	vq->last_update_time = now;
+	min_borrow = 0;
 
 	/* assimilate and reset per-cpu counters */
 	for_each_online_cpu(i) {
@@ -153,11 +212,43 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	}
 
 	vq->backlog = min(vq->backlog, (u64)ISO_VQ_MAX_BYTES);
+
+	if(vq->backlog > 0) {
+		if(!vq->active) {
+			vq->active = 1;
+			atomic_add(vq->rate, &vq_active_rate);
+		}
+
+		factor = atomic_read(&vq_active_rate);
+		if(factor == 0)
+			factor = vq->rate;
+
+		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * dt / factor) >> 3;
+	} else {
+		if(vq->active) {
+			vq->active = 0;
+			atomic_sub(vq->rate, &vq_active_rate);
+		}
+	}
+
+	if(vq->tokens == 0) {
+		/* We've run out of tokens.  Borrow in proportion to our
+		   rate */
+		u64 borrow = min_borrow;
+
+		if(spin_trylock_irq(&vq_spinlock)) {
+			iso_vq_global_tick();
+			vq_total_tokens -= borrow;
+			vq->tokens += borrow;
+			vq->tokens = min(vq->tokens, 100*1000);
+			spin_unlock_irq(&vq_spinlock);
+		}
+	}
+
+	max_drain = vq->tokens;
 	can_drain = min(vq->backlog, max_drain);
 	vq->backlog -= can_drain;
-
-	vq_total_tokens -= can_drain;
-	vq_total_tokens = max(vq_total_tokens, 0LL);
+	vq->tokens -= can_drain;
 }
 
 void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
@@ -167,10 +258,11 @@ void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
 
 	iso_class_show(vq->klass, buff);
 	seq_printf(s, "vq class %s   flags %d,%d,%d   rate %llu   backlog %llu   weight %llu"
-			   "   refcnt %d\n",
+			   "   refcnt %d   tokens %llu\n",
 			   buff, vq->enabled, vq->active, vq->is_static,
 			   vq->rate, vq->backlog, vq->weight,
-			   atomic_read(&vq->refcnt));
+			   atomic_read(&vq->refcnt),
+			   vq->tokens);
 
 	for_each_online_cpu(i) {
 		if(first) {
