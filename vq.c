@@ -130,16 +130,15 @@ void iso_vq_check_idle() {
 void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	ktime_t now = ktime_get();
 	ktime_t last = vq->last_update_time;
-
-	if(ktime_us_delta(now, vq_last_check_time) > 10000) {
-		iso_vq_check_idle();
-	}
-
 	u64 dt = ktime_us_delta(now, last);
 	unsigned long flags;
 	int cpu = smp_processor_id();
 	struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, cpu);
 	u32 len = skb_size(pkt);
+
+	if(ktime_us_delta(now, vq_last_check_time) > 10000) {
+		iso_vq_check_idle();
+	}
 
 	if(unlikely(dt > ISO_VQ_UPDATE_INTERVAL_US)) {
 		if(spin_trylock_irqsave(&vq->spinlock, flags)) {
@@ -197,7 +196,7 @@ inline void iso_vq_global_tick(void) {
 
 /* called with vq's lock */
 void iso_vq_drain(struct iso_vq *vq, u64 dt) {
-	u64 can_drain, max_drain, max_borrow, min_borrow;
+	u64 can_drain, max_drain, min_borrow;
 	int i, factor;
 	ktime_t now = ktime_get();
 
@@ -241,7 +240,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq_total_tokens -= borrow;
 			vq->tokens += borrow;
 			/* Don't accumulate infinitely many tokens */
-			vq->tokens = min(vq->tokens, 100*1000);
+			vq->tokens = min(vq->tokens, 100*1000LLU);
 			spin_unlock_irq(&vq_spinlock);
 		}
 	}
