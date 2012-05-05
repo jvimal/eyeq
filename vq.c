@@ -240,6 +240,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			iso_vq_global_tick();
 			vq_total_tokens -= borrow;
 			vq->tokens += borrow;
+			/* Don't accumulate infinitely many tokens */
 			vq->tokens = min(vq->tokens, 100*1000);
 			spin_unlock_irq(&vq_spinlock);
 		}
