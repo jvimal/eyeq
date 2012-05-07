@@ -168,12 +168,21 @@ inline void iso_rl_clock(struct iso_rl *rl) {
 enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu) {
 	struct iso_rl_queue *q = per_cpu_ptr(rl->queue, cpu);
 	enum iso_verdict verdict;
+	s32 len, diff;
+
+#define MIN_PKT_SIZE (600)
 
 	iso_rl_clock(rl);
+	len = (s32) skb_size(pkt);
 
-	if(skb_queue_len(&q->list) == ISO_MAX_QUEUE_LEN_PKT+1) {
-		verdict = ISO_VERDICT_DROP;
-		goto done;
+	if(q->bytes_enqueued + len > ISO_MAX_QUEUE_LEN_BYTES) {
+		diff = (s32)q->bytes_enqueued - ISO_MAX_QUEUE_LEN_BYTES;
+		if(diff < MIN_PKT_SIZE) {
+			verdict = ISO_VERDICT_DROP;
+			goto done;
+		} else {
+			skb_trim(pkt, diff);
+		}
 	}
 
 	/* we don't need locks */
