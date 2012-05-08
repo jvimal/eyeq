@@ -176,8 +176,8 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 	len = (s32) skb_size(pkt);
 
 	if(q->bytes_enqueued + len > ISO_MAX_QUEUE_LEN_BYTES) {
-		diff = (s32)q->bytes_enqueued - ISO_MAX_QUEUE_LEN_BYTES;
-		if(diff < MIN_PKT_SIZE) {
+		diff = (s32)q->bytes_enqueued + len - ISO_MAX_QUEUE_LEN_BYTES;
+		if(diff > len || diff - len < MIN_PKT_SIZE) {
 			verdict = ISO_VERDICT_DROP;
 			goto done;
 		} else {
