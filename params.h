@@ -44,6 +44,7 @@ extern int ISO_VQ_UPDATE_INTERVAL_US;
 extern int ISO_TXC_UPDATE_INTERVAL_US;
 extern int ISO_VQ_REFRESH_INTERVAL_US;
 extern int ISO_MAX_QUEUE_LEN_BYTES;
+extern int ISO_TX_MARK_THRESH;
 
 // MUST be 1 less than a power of 2
 #define ISO_MAX_QUEUE_LEN_PKT (127)

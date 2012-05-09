@@ -61,8 +61,9 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 		u64 dt = ktime_us_delta(ktime_get(), stats->last_feedback_gen_time);
 
 		if(dt > ISO_FEEDBACK_INTERVAL_US) {
-			iso_generate_feedback(iso_vq_over_limits(vq), skb);
+			iso_generate_feedback(iso_vq_over_limits(vq) || stats->network_marked, skb);
 			stats->last_feedback_gen_time = now;
+			stats->network_marked = 0;
 		}
 	}
 

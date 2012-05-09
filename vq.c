@@ -135,6 +135,16 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	int cpu = smp_processor_id();
 	struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, cpu);
 	u32 len = skb_size(pkt);
+	struct ethhdr *eth;
+	struct iphdr *iph;
+
+	eth = eth_hdr(pkt);
+
+	if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
+		iph = ip_hdr(pkt);
+		if((iph->tos & 0x3) == 0x3)
+			stats->network_marked++;
+	}
 
 	if(ktime_us_delta(now, vq_last_check_time) > 10000) {
 		iso_vq_check_idle();
