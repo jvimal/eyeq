@@ -52,8 +52,8 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 		}
 	}
 
-	seq_printf(s, "\nvqs   total_tokens %lld   last_update %llx\n",
-			   vq_total_tokens, *(u64 *)&vq_last_update_time);
+	seq_printf(s, "\nvqs   total_tokens %lld   last_update %llx   active_rate %d\n",
+			   vq_total_tokens, *(u64 *)&vq_last_update_time, atomic_read(&vq_active_rate));
 
 	for_each_vq(vq) {
 		iso_vq_show(vq, s);
