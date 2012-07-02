@@ -41,7 +41,7 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	if(txc == NULL)
 		goto accept;
 
-	state = iso_state_get(txc, skb, 1);
+	state = iso_state_get(txc, skb, 1, ISO_CREATE_RL);
 	if(unlikely(state == NULL))
 		goto accept;
 

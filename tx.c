@@ -168,7 +168,7 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 	if(txc == NULL)
 		goto accept;
 
-	state = iso_state_get(txc, skb, 0);
+	state = iso_state_get(txc, skb, 0, ISO_DONT_CREATE_RL);
 	if(unlikely(state == NULL)) {
 		/* printk(KERN_INFO "perfiso: running out of memory!\n"); */
 		/* XXX: Temporary: could be an L2 packet... */
@@ -196,8 +196,9 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 /* Called with rcu lock */
 struct iso_per_dest_state
 *iso_state_get(struct iso_tx_class *txc,
-			   struct sk_buff *skb,
-			   int rx)
+							 struct sk_buff *skb,
+							 int rx,
+							 enum iso_create_t create_flags)
 {
 	struct ethhdr *eth;
 	struct iphdr *iph;
@@ -232,7 +233,7 @@ struct iso_per_dest_state
 	if(likely(state != NULL))
 		return state;
 
-	if(!spin_trylock(&txc->writelock))
+	if(create_flags == ISO_DONT_CREATE_RL || !spin_trylock(&txc->writelock))
 		return NULL;
 
 	/* Check again; shouldn't we use a rwlock_t? */

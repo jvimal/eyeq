@@ -49,6 +49,11 @@ struct iso_tx_class {
 	struct work_struct allocator;
 };
 
+enum iso_create_t {
+	ISO_DONT_CREATE_RL,
+	ISO_CREATE_RL,
+};
+
 extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
 extern struct list_head txc_list;
 extern int txc_total_weight;
@@ -81,7 +86,7 @@ inline void iso_txc_tick(void);
 static inline void iso_txc_recompute_rates(void);
 
 void iso_state_init(struct iso_per_dest_state *);
-struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *, int rx);
+struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *, int rx, enum iso_create_t);
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32);
 void iso_state_free(struct iso_per_dest_state *);
 
