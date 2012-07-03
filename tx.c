@@ -233,7 +233,7 @@ struct iso_per_dest_state
 	if(likely(state != NULL))
 		return state;
 
-	if(create_flags == ISO_DONT_CREATE_RL || !spin_trylock(&txc->writelock))
+	if((create_flags == ISO_DONT_CREATE_RL) || !spin_trylock(&txc->writelock))
 		return NULL;
 
 	/* Check again; shouldn't we use a rwlock_t? */
