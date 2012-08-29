@@ -104,6 +104,7 @@ netdev_tx_t iso_ndo_start_xmit(struct sk_buff *skb, struct net_device *out) {
 	enum iso_verdict verdict;
 	struct netdev_queue *txq;
 	int cpu = smp_processor_id();
+	netdev_tx_t ret = NETDEV_TX_OK;
 
 	txq = netdev_get_tx_queue(iso_netdev, skb_get_queue_mapping(skb));
 	HARD_TX_UNLOCK(iso_netdev, txq);
@@ -113,7 +114,7 @@ netdev_tx_t iso_ndo_start_xmit(struct sk_buff *skb, struct net_device *out) {
 
 	switch(verdict) {
 	case ISO_VERDICT_DROP:
-		kfree_skb(skb);
+		ret = NETDEV_TX_BUSY;
 		break;
 
 	case ISO_VERDICT_PASS:
@@ -126,7 +127,7 @@ netdev_tx_t iso_ndo_start_xmit(struct sk_buff *skb, struct net_device *out) {
 	}
 
 	HARD_TX_LOCK(iso_netdev, txq, cpu);
-	return NETDEV_TX_OK;
+	return ret;
 }
 
 rx_handler_result_t iso_rx_handler(struct sk_buff **pskb) {
