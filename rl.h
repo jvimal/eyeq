@@ -123,11 +123,14 @@ static inline int skb_has_feedback(struct sk_buff *skb) {
 		return 0;
 
 	iph = ip_hdr(skb);
-	return iph->tos & ISO_ECN_REFLECT_MASK;
+	//return iph->tos & ISO_ECN_REFLECT_MASK;
+	if(unlikely(iph->protocol != ISO_FEEDBACK_PACKET_IPPROTO))
+		return 0;
+	return iph->id & 0x8;
 }
 
 static inline ktime_t iso_rl_gettimeout() {
-	return ktime_set(0, ISO_TOKENBUCKET_TIMEOUT_NS << 1);
+	return ktime_set(0, ISO_TOKENBUCKET_TIMEOUT_NS);
 }
 
 

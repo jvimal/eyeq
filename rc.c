@@ -1,10 +1,18 @@
 
 #include "rc.h"
 
+const char iso_rc_state_str[][32] = {
+	[RC_FAST_RECOVERY] = "RC_FAST_RECOVERY",
+	[RC_AI] = "RC_AI"
+};
+
 void iso_rc_init(struct iso_rc_state *rc) {
 	int i;
 	rc->rfair = ISO_RFAIR_INITIAL;
+	rc->rfair_target = ISO_RFAIR_INITIAL;
 	rc->alpha = 0;
+	rc->count = 0;
+	rc->state = RC_AI;
 
 	rc->last_rfair_change_time = ktime_get();
 	rc->last_rfair_decrease_time = ktime_get();
@@ -28,7 +36,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 	int marked = skb_has_feedback(skb);
 	ktime_t now = ktime_get();
 	int changed = 0;
-	u64 dt;
+	u64 dt, target;
 	struct iso_rc_stats *stats = per_cpu_ptr(rc->stats, smp_processor_id());
 
 	stats->num_rx++;
@@ -47,10 +55,18 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 			if(unlikely(dt < ISO_RFAIR_DECREASE_INTERVAL_US))
 				goto done_decrease;
 
+			target = rc->rfair;
+			rc->count = 0;
 			/* Compute alpha */
-			iso_rc_do_alpha(rc);
-			iso_rc_do_md(rc);
+			//iso_rc_do_alpha(rc);
+			rc->alpha = marked;
+			//iso_rc_do_md(rc);
+			rc->rfair = (rc->rfair * (512 - marked)) / 512;
+			rc->rfair = max((u64)ISO_MIN_RFAIR, rc->rfair);
+
 			rc->last_rfair_decrease_time = now;
+			rc->state = RC_FAST_RECOVERY;
+			rc->rfair_target = target;
 
 		done_decrease:
 			spin_unlock(&rc->spinlock);
@@ -69,7 +85,15 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 				goto done_increase;
 
 			iso_rc_do_alpha(rc);
-			iso_rc_do_ai(rc);
+			if(rc->state == RC_FAST_RECOVERY && rc->count < 5) {
+				rc->rfair = (rc->rfair + rc->rfair_target) / 2;
+				rc->count++;
+			} else {
+				rc->state = RC_AI;
+				rc->count = 0;
+				iso_rc_do_ai(rc);
+				rc->rfair_target = rc->rfair;
+			}
 		done_increase:
 			spin_unlock(&rc->spinlock);
 			goto changed;
@@ -123,9 +147,9 @@ void iso_rc_show(struct iso_rc_state *rc, struct seq_file *s) {
 	int i;
 	struct iso_rc_stats *stats;
 
-	seq_printf(s, "\trfair %llu   alpha %llu   "
+	seq_printf(s, "\trfair %llu (%llu)   alpha %llu   state %s   "
 			   "last_change %llx   last_decrease %llx   last_feedback %llx\n",
-			   rc->rfair, rc->alpha,
+			   rc->rfair, rc->rfair_target, rc->alpha, iso_rc_state_str[rc->state],
 			   *(u64*)&rc->last_rfair_change_time, *(u64*)&rc->last_rfair_decrease_time,
 			   *(u64*)&rc->last_feedback_time);
 

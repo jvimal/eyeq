@@ -56,7 +56,7 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 		iph_to->version = 4;
 		iph_to->tos = 0x2 | (bit ? ISO_ECN_REFLECT_MASK : 0);
 		iph_to->tot_len = __constant_htons(ISO_FEEDBACK_HEADER_SIZE);
-		iph_to->id = iph_from->id;
+		iph_to->id = bit; //iph_from->id;
 		iph_to->frag_off = 0;
 		iph_to->ttl = ISO_FEEDBACK_PACKET_TTL;
 		iph_to->protocol = (u8)ISO_FEEDBACK_PACKET_IPPROTO;

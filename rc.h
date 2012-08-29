@@ -11,10 +11,18 @@ struct iso_rc_stats {
 	u64 num_rx;
 };
 
+enum iso_rc {
+	RC_FAST_RECOVERY,
+	RC_AI,
+};
+
 /* Rate controller specific state */
 struct iso_rc_state {
 	u64 rfair;
+	u64 rfair_target;
+	enum iso_rc state;
 	u64 alpha;
+	int count;
 
 	struct iso_rc_stats __percpu *stats;
 
