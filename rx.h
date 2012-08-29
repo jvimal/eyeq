@@ -90,6 +90,18 @@ static inline int iso_is_generated_feedback(struct sk_buff *skb) {
 	return 0;
 }
 
+static inline int iso_is_feedback_marked(struct sk_buff *skb) {
+	struct ethhdr *eth;
+	struct iphdr *iph;
+	eth = eth_hdr(skb);
+	if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
+		iph = ip_hdr(skb);
+		if(unlikely(iph->protocol == ISO_FEEDBACK_PACKET_IPPROTO))
+			return (iph->id & 8);
+	}
+	return 0;
+}
+
 #endif /* __RX_H__ */
 
 /* Local Variables: */

@@ -41,19 +41,19 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	if(txc == NULL)
 		goto accept;
 
-	state = iso_state_get(txc, skb, 1, ISO_CREATE_RL);
-	if(unlikely(state == NULL))
-		goto accept;
+	state = iso_state_get(txc, skb, 1, ISO_CREATE_RL && iso_is_feedback_marked(skb));
 
-	rc = &state->tx_rc;
-	changed = iso_rc_rx(rc, skb);
+	if(likely(state != NULL)) {
+		rc = &state->tx_rc;
+		changed = iso_rc_rx(rc, skb);
 
-	/* XXX: for now */
-	if(changed && ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE)
-		state->rl->rate = rc->rfair;
+		/* XXX: for now */
+		if(changed && ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE)
+			state->rl->rate = rc->rfair;
 
-	if(unlikely(iso_is_generated_feedback(skb)))
-		verdict = ISO_VERDICT_DROP;
+		if(unlikely(iso_is_generated_feedback(skb)))
+			verdict = ISO_VERDICT_DROP;
+	}
 
 	stats = per_cpu_ptr(vq->percpu_stats, smp_processor_id());
 	if(IsoAutoGenerateFeedback) {
@@ -61,7 +61,7 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 		u64 dt = ktime_us_delta(ktime_get(), stats->last_feedback_gen_time);
 
 		if(dt > ISO_FEEDBACK_INTERVAL_US) {
-			iso_generate_feedback(iso_vq_over_limits(vq) || stats->network_marked, skb);
+			iso_generate_feedback(iso_vq_over_limits(vq), skb);
 			stats->last_feedback_gen_time = now;
 			stats->network_marked = 0;
 		}

@@ -50,8 +50,8 @@ struct iso_tx_class {
 };
 
 enum iso_create_t {
-	ISO_DONT_CREATE_RL,
-	ISO_CREATE_RL,
+	ISO_DONT_CREATE_RL = 0,
+	ISO_CREATE_RL = 1,
 };
 
 extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
