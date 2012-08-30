@@ -86,6 +86,7 @@ int iso_vq_init(struct iso_vq *vq) {
 		stats->bytes_queued = 0;
 		stats->network_marked = 0;
 		stats->rx_bytes = 0;
+		stats->rx_since_last_feedback = 0;
 	}
 
 	spin_lock_init(&vq->spinlock);

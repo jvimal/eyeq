@@ -30,6 +30,7 @@ struct iso_vq_stats {
 	u64 rx_bytes;
 
 	ktime_t last_feedback_gen_time;
+	u32 rx_since_last_feedback;
 };
 
 struct iso_vq {

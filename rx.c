@@ -59,10 +59,13 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	if(IsoAutoGenerateFeedback && verdict != ISO_VERDICT_DROP) {
 		ktime_t now = ktime_get();
 		u64 dt = ktime_us_delta(ktime_get(), stats->last_feedback_gen_time);
+		stats->rx_since_last_feedback += skb_size(skb);
 
-		if(dt > ISO_FEEDBACK_INTERVAL_US) {
+		if((dt > ISO_FEEDBACK_INTERVAL_US) ||							\
+		   (stats->rx_since_last_feedback >= ISO_FEEDBACK_INTERVAL_BYTES)) {
 			iso_generate_feedback(iso_vq_over_limits(vq), skb);
 			stats->last_feedback_gen_time = now;
+			stats->rx_since_last_feedback = 0;
 			stats->network_marked = 0;
 		}
 	}
