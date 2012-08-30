@@ -54,6 +54,8 @@ extern int ISO_TX_MARK_THRESH;
 #define ISO_MAX_RL_BUCKETS (256)
 #define ISO_MAX_STATE_BUCKETS (256)
 #define ISO_MAX_VQ_BUCKETS (256)
+#define ISO_IDLE_TIMEOUT_US (100 * 1000)
+#define ISO_IDLE_RATE (2500)
 
 struct iso_param {
 	char name[64];

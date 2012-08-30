@@ -37,6 +37,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 	ktime_t now = ktime_get();
 	int changed = 0;
 	u64 dt, target;
+	int idle;
 	struct iso_rc_stats *stats = per_cpu_ptr(rc->stats, smp_processor_id());
 
 	stats->num_rx++;
@@ -54,6 +55,11 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 			dt = ktime_us_delta(now, rc->last_rfair_decrease_time);
 			if(unlikely(dt < ISO_RFAIR_DECREASE_INTERVAL_US))
 				goto done_decrease;
+
+			idle = ktime_us_delta(now, rc->last_rfair_change_time) > ISO_IDLE_TIMEOUT_US;
+			if(unlikely(idle)) {
+				rc->rfair = rc->rfair_target = ISO_IDLE_RATE;
+			}
 
 			target = rc->rfair;
 			rc->count = 0;
@@ -84,7 +90,12 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 			if(unlikely(dt < ISO_RFAIR_INCREASE_INTERVAL_US))
 				goto done_increase;
 
-			iso_rc_do_alpha(rc);
+			idle = dt > ISO_IDLE_TIMEOUT_US;
+			if(unlikely(idle)) {
+				rc->rfair = rc->rfair_target = ISO_IDLE_RATE;
+			}
+
+			// iso_rc_do_alpha(rc);
 			if(rc->state == RC_FAST_RECOVERY && rc->count < 5) {
 				rc->rfair = (rc->rfair + rc->rfair_target) / 2;
 				rc->count++;
