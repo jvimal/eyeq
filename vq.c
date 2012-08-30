@@ -194,6 +194,7 @@ inline void iso_vq_global_tick(void) {
 	ktime_t now = ktime_get();
 
 	dt = ktime_us_delta(now, vq_last_update_time);
+	dt = min_t(u64, dt, ISO_VQ_REFRESH_INTERVAL_US);
 
 	dtokens = (ISO_VQ_DRAIN_RATE_MBPS * dt) >> 3;
 	maxtokens = (ISO_VQ_DRAIN_RATE_MBPS * ISO_VQ_REFRESH_INTERVAL_US) >> 3;
@@ -232,7 +233,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		if(factor == 0)
 			factor = vq->rate;
 
-		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * dt / factor) >> 3;
+		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * min_t(u64, dt, ISO_VQ_REFRESH_INTERVAL_US) / factor) >> 3;
 	} else {
 		if(vq->active) {
 			vq->active = 0;
