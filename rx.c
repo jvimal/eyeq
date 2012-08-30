@@ -56,7 +56,7 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	}
 
 	stats = per_cpu_ptr(vq->percpu_stats, smp_processor_id());
-	if(IsoAutoGenerateFeedback) {
+	if(IsoAutoGenerateFeedback && verdict != ISO_VERDICT_DROP) {
 		ktime_t now = ktime_get();
 		u64 dt = ktime_us_delta(ktime_get(), stats->last_feedback_gen_time);
 
