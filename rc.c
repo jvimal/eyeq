@@ -57,7 +57,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 				goto done_decrease;
 
 			idle = ktime_us_delta(now, rc->last_rfair_change_time) > ISO_IDLE_TIMEOUT_US;
-			if(unlikely(idle)) {
+			if(unlikely(idle && rc->rfair > ISO_IDLE_RATE)) {
 				rc->rfair = rc->rfair_target = ISO_IDLE_RATE;
 			}
 
@@ -91,7 +91,7 @@ inline int iso_rc_rx(struct iso_rc_state *rc, struct sk_buff *skb) {
 				goto done_increase;
 
 			idle = dt > ISO_IDLE_TIMEOUT_US;
-			if(unlikely(idle)) {
+			if(unlikely(idle && rc->rfair > ISO_IDLE_RATE)) {
 				rc->rfair = rc->rfair_target = ISO_IDLE_RATE;
 			}
 
