@@ -234,7 +234,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		if(factor == 0)
 			factor = vq->rate;
 
-		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * min_t(u64, dt, ISO_VQ_REFRESH_INTERVAL_US) / factor) >> 3;
+		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * dt / factor) >> 3;
 	} else {
 		if(vq->active) {
 			vq->active = 0;
@@ -252,7 +252,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq_total_tokens -= borrow;
 			vq->tokens += borrow;
 			/* Don't accumulate infinitely many tokens */
-			vq->tokens = min(vq->tokens, 100*1000LLU);
+			vq->tokens = min(vq->tokens, 200*1000LLU);
 			spin_unlock_irq(&vq_spinlock);
 		}
 	}
