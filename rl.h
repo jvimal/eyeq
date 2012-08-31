@@ -126,7 +126,7 @@ static inline int skb_has_feedback(struct sk_buff *skb) {
 	//return iph->tos & ISO_ECN_REFLECT_MASK;
 	if(unlikely(iph->protocol != ISO_FEEDBACK_PACKET_IPPROTO))
 		return 0;
-	return iph->id & 0x8;
+	return iph->id;
 }
 
 static inline ktime_t iso_rl_gettimeout() {
