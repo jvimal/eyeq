@@ -155,26 +155,11 @@ inline void iso_rc_do_alpha(struct iso_rc_state *rc) {
 }
 
 void iso_rc_show(struct iso_rc_state *rc, struct seq_file *s) {
-	int i;
-	struct iso_rc_stats *stats;
-
 	seq_printf(s, "\trfair %llu (%llu)   alpha %llu   state %s   "
 			   "last_change %llx   last_decrease %llx   last_feedback %llx\n",
 			   rc->rfair, rc->rfair_target, rc->alpha, iso_rc_state_str[rc->state],
 			   *(u64*)&rc->last_rfair_change_time, *(u64*)&rc->last_rfair_decrease_time,
 			   *(u64*)&rc->last_feedback_time);
-
-	seq_printf(s, "\t\tpercpu rx:");
-	for_each_online_cpu(i) {
-		stats = per_cpu_ptr(rc->stats, i);
-		seq_printf(s, "  %9llx", stats->num_rx);
-	}
-
-	seq_printf(s, "\n\t\tpercpu fb:");
-	for_each_online_cpu(i) {
-		stats = per_cpu_ptr(rc->stats, i);
-		seq_printf(s, "  %9llx", stats->num_marked);
-	}
 
 	seq_printf(s, "\n");
 }
