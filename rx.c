@@ -44,7 +44,7 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	if(likely(state != NULL)) {
 		int rate = skb_has_feedback(skb);
 		struct iso_rc_state *rc = &state->tx_rc;
-		ktime_get now = ktime_get();
+		ktime_t now = ktime_get();
 		/* XXX: for now */
 		if((ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) && (rate != 0)) {
 			u64 dt = ktime_us_delta(now, rc->last_rfair_change_time);
