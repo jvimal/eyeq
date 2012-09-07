@@ -125,6 +125,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	iso_rl_show(&txc->rl, s);
 	seq_printf(s, "\n");
 
+#ifdef RCP
 	seq_printf(s, "per dest state:\n");
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
 		head = &txc->state_bucket[i];
@@ -133,6 +134,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 			iso_rc_show(&state->tx_rc, s);
 		}
 	}
+#endif
 
 	seq_printf(s, "rate limiters:\n");
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {

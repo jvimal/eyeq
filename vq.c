@@ -240,6 +240,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		if(factor == 0)
 			factor = vq->rate;
 
+		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * dt / factor) >> 3;
 		/* RCP calculation */
 		{
 			int rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
