@@ -271,11 +271,6 @@ void iso_rl_dequeue(unsigned long _q) {
 		q->tokens -= size;
 		q->bytes_enqueued -= size;
 
-		if(q->feedback_backlog) {
-			if(!skb_set_feedback(pkt))
-				q->feedback_backlog = 0;
-		}
-
 		if(rl->txc == NULL) {
 			skb_xmit(pkt);
 			q->bytes_xmit += size;
