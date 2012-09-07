@@ -178,30 +178,55 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 	iso_rl_clock(rl);
 	len = (s32) skb_size(pkt);
 
-	if(q->bytes_enqueued + len > ISO_MAX_QUEUE_LEN_BYTES) {
-		diff = (s32)q->bytes_enqueued + len - ISO_MAX_QUEUE_LEN_BYTES;
-		if(diff > len || diff - len < MIN_PKT_SIZE) {
-			verdict = ISO_VERDICT_DROP;
+	if(rl->rate > ISO_GSO_THRESH_RATE || len <= ISO_GSO_MIN_SPLIT_BYTES) {
+		if(q->bytes_enqueued + len > ISO_MAX_QUEUE_LEN_BYTES) {
+			diff = (s32)q->bytes_enqueued + len - ISO_MAX_QUEUE_LEN_BYTES;
+			if(diff > len || diff - len < MIN_PKT_SIZE) {
+				verdict = ISO_VERDICT_DROP;
+				goto done;
+			} else {
+				skb_trim(pkt, diff);
+			}
+		}
+
+		/* we don't need locks */
+		__skb_queue_tail(&q->list, pkt);
+		q->bytes_enqueued += skb_size(pkt);
+
+		if(rl->txc == NULL && q->bytes_enqueued > ISO_TX_MARK_THRESH) {
+			struct ethhdr *eth = eth_hdr(pkt);
+			if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
+				struct iphdr *iph = ip_hdr(pkt);
+				ipv4_change_dsfield(iph, 0, 0x3);
+			}
+		}
+	} else {
+		/* we can split the skb into smaller chunks, as the rate is small */
+		struct sk_buff *skb = skb_gso_segment(pkt, NETIF_F_SG | NETIF_F_HW_CSUM);
+		struct sk_buff *next = NULL;
+
+		if(IS_ERR(skb)) {
+			verdict = ISO_VERDICT_ERROR;
+			if(net_ratelimit())
+				printk(KERN_INFO "skb gso segment error len=%d\n", len);
 			goto done;
-		} else {
-			skb_trim(pkt, diff);
 		}
-	}
 
-	/* we don't need locks */
-	__skb_queue_tail(&q->list, pkt);
-	q->bytes_enqueued += skb_size(pkt);
+		kfree_skb(pkt);
 
-	if(rl->txc == NULL && q->bytes_enqueued > ISO_TX_MARK_THRESH) {
-		struct ethhdr *eth = eth_hdr(pkt);
-		if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
-			struct iphdr *iph = ip_hdr(pkt);
-			ipv4_change_dsfield(iph, 0, 0x3);
-		}
+		do {
+			next = skb->next;
+			skb->next = NULL;
+			if(q->bytes_enqueued < ISO_MAX_QUEUE_LEN_BYTES) {
+				__skb_queue_tail(&q->list, skb);
+				q->bytes_enqueued += skb_size(skb);
+			} else {
+				kfree_skb(skb);
+			}
+		} while((skb = next));
 	}
 
 	verdict = ISO_VERDICT_SUCCESS;
-
  done:
 	return verdict;
 }
@@ -241,7 +266,7 @@ void iso_rl_dequeue(unsigned long _q) {
 	/* XXX: this should be size <= q->tokens, but it somehow works.
 	 * Maybe it has better fairness :-? */
 
-	while(sum <= q->tokens) {
+	while(size <= q->tokens) {
 		pkt = __skb_dequeue(skq);
 		q->tokens -= size;
 		q->bytes_enqueued -= size;
@@ -315,6 +340,7 @@ inline int iso_rl_borrow_tokens(struct iso_rl *rl, struct iso_rl_queue *q) {
 		return timeout;
 
 	borrow = max(iso_rl_singleq_burst(rl), (u64)q->first_pkt_size);
+	borrow = rl->total_tokens;
 
 	if(rl->total_tokens >= borrow) {
 		rl->total_tokens -= borrow;

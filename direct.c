@@ -122,6 +122,7 @@ netdev_tx_t iso_ndo_start_xmit(struct sk_buff *skb, struct net_device *out) {
 		break;
 
 	case ISO_VERDICT_SUCCESS:
+	case ISO_VERDICT_ERROR:
 	default:
 		break;
 	}
