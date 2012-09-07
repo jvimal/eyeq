@@ -163,7 +163,6 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 	struct iso_per_dest_state *state;
 	struct iso_rl *rl;
 	struct iso_rl_queue *q;
-	struct iso_vq *vq;
 	enum iso_verdict verdict = ISO_VERDICT_PASS;
 	int cpu = smp_processor_id();
 
@@ -183,17 +182,10 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 	}
 
 	rl = state->rl;
-	vq = txc->vq;
 
 	/* Enqueue in RL */
 	verdict = iso_rl_enqueue(rl, skb, cpu);
 	q = per_cpu_ptr(rl->queue, cpu);
-
-	if(likely(vq)) {
-		if(iso_vq_over_limits(vq))
-			q->feedback_backlog++;
-	}
-
 	iso_rl_dequeue((unsigned long)q);
  accept:
 	rcu_read_unlock();
