@@ -125,7 +125,8 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	iso_rl_show(&txc->rl, s);
 	seq_printf(s, "\n");
 
-#ifdef RCP
+	state = NULL;
+#ifdef PERDESTSTATE
 	seq_printf(s, "per dest state:\n");
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
 		head = &txc->state_bucket[i];
