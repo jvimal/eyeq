@@ -82,6 +82,8 @@ inline void iso_txc_tick() {
 			if(txc->active)
 				active_weight += txc->weight;
 			total_weight += txc->weight;
+			txc->tx_rate = (rl->accum_xmit - last_xmit) * 8 / dt;
+			txc->tx_rate_smooth = (txc->tx_rate_smooth * 15 + txc->tx_rate) / 16;
 		}
 
 		/* TODO: Clamp rates */
@@ -125,7 +127,9 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	}
 
 	seq_printf(s, "txc class %s   assoc vq %s   freelist %d\n", buff, vqc, txc->freelist_count);
-	seq_printf(s, "txc rl   xmit %llu   queued %llu\n", txc->rl.accum_xmit, txc->rl.accum_enqueued);
+	seq_printf(s, "txc rl tx_rate %u,%u   rate %u   xmit %llu   queued %llu\n",
+			   txc->tx_rate, txc->tx_rate_smooth, txc->rl.rate,
+			   txc->rl.accum_xmit, txc->rl.accum_enqueued);
 	iso_rl_show(&txc->rl, s);
 	seq_printf(s, "\n");
 
@@ -323,6 +327,8 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	txc->weight = 1;
 	txc->active = 0;
 	txc->vrate = 100;
+	txc->tx_rate = 0;
+	txc->tx_rate_smooth = 0;
 
 	INIT_WORK(&txc->allocator, iso_txc_allocator);
 }

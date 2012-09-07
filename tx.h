@@ -43,6 +43,7 @@ struct iso_tx_class {
 	struct iso_rl rl;
 	int weight;
 	int active;
+	int tx_rate, tx_rate_smooth;
 	u32 vrate;
 
 	/* Allocate from process context */
