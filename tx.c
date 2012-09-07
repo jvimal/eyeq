@@ -62,6 +62,10 @@ inline void iso_txc_tick() {
 		return;
 
 	if(spin_trylock_irqsave(&txc_spinlock, flags)) {
+		dt = ktime_us_delta(now, txc_last_update_time);
+		if(unlikely(dt < ISO_TXC_UPDATE_INTERVAL_US))
+			goto skip;
+
 		txc_last_update_time = now;
 		active_weight = 0;
 		total_weight = 0;
@@ -97,7 +101,7 @@ inline void iso_txc_tick() {
 				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / total_weight;
 			}
 		}
-
+	skip:
 		spin_unlock_irqrestore(&txc_spinlock, flags);
 	}
 }

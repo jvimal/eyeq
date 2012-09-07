@@ -43,9 +43,22 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 
 	if(likely(state != NULL)) {
 		int rate = skb_has_feedback(skb);
+		struct iso_rc_state *rc = &state->tx_rc;
+		ktime_get now = ktime_get();
 		/* XXX: for now */
-		if((ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) && (rate != 0))
-			state->rl->rate = rate;
+		if((ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) && (rate != 0)) {
+			u64 dt = ktime_us_delta(now, rc->last_rfair_change_time);
+			if(dt >= ISO_RFAIR_DECREASE_INTERVAL_US) {
+				if(spin_trylock(&rc->spinlock)) {
+					dt = ktime_us_delta(now, rc->last_rfair_change_time);
+					if(dt >= ISO_RFAIR_DECREASE_INTERVAL_US) {
+						state->rl->rate = rate;
+						rc->last_rfair_change_time = now;
+					}
+					spin_unlock(&rc->spinlock);
+				}
+			}
+		}
 
 		if(unlikely(iso_is_generated_feedback(skb)))
 			verdict = ISO_VERDICT_DROP;

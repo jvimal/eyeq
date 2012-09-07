@@ -132,9 +132,8 @@ void iso_vq_check_idle() {
 }
 
 void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
-	ktime_t now = ktime_get();
-	ktime_t last = vq->last_update_time;
-	u64 dt = ktime_us_delta(now, last);
+	ktime_t now;
+	u64 dt;
 	unsigned long flags;
 	int cpu = smp_processor_id();
 	struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, cpu);
@@ -150,10 +149,13 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 			stats->network_marked++;
 	}
 
+	now = ktime_get();
 	if(ktime_us_delta(now, vq_last_check_time) > 10000) {
 		iso_vq_check_idle();
 	}
 
+	now = ktime_get();
+	dt = ktime_us_delta(now, vq->last_update_time);
 	if(unlikely(dt > ISO_VQ_UPDATE_INTERVAL_US)) {
 		if(spin_trylock_irqsave(&vq->spinlock, flags)) {
 			iso_vq_drain(vq, dt);
@@ -212,13 +214,18 @@ inline void iso_vq_global_tick(void) {
 /* called with vq's lock */
 void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	u64 can_drain, max_drain, min_borrow;
-	u64 rx_bytes;
+	u64 rx_bytes, dt2;
 	int i, factor;
 	ktime_t now = ktime_get();
+
+	dt2 = ktime_us_delta(now, vq->last_update_time);
+	if(dt2 < ISO_VQ_UPDATE_INTERVAL_US)
+		return;
 
 	vq->last_update_time = now;
 	min_borrow = 0;
 	rx_bytes = 0;
+	factor = 0;
 
 	/* assimilate and reset per-cpu counters */
 	for_each_online_cpu(i) {
