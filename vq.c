@@ -211,16 +211,19 @@ inline void iso_vq_global_tick(void) {
 /* called with vq's lock */
 void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	u64 can_drain, max_drain, min_borrow;
+	u64 rx_bytes;
 	int i, factor;
 	ktime_t now = ktime_get();
 
 	vq->last_update_time = now;
 	min_borrow = 0;
+	rx_bytes = 0;
 
 	/* assimilate and reset per-cpu counters */
 	for_each_online_cpu(i) {
 		struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, i);
 		vq->backlog += stats->bytes_queued;
+		rx_bytes += stats->rx_bytes;
 		stats->bytes_queued = 0;
 	}
 
@@ -236,7 +239,17 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		if(factor == 0)
 			factor = vq->rate;
 
-		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * dt / factor) >> 3;
+		/* RCP calculation */
+		{
+			int rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
+			u64 diff = rx_bytes - vq->last_rx;
+			int rx_rate = (diff << 3) / dt;
+			vq->feedback_rate = vq->feedback_rate * (3 * rate - rx_rate) / (rate << 1);
+			vq->feedback_rate = min(rate, vq->feedback_rate);
+			vq->feedback_rate = max(ISO_MIN_RFAIR, vq->feedback_rate);
+			vq->rx_rate = rx_rate;
+			vq->last_rx = rx_bytes;
+		}
 	} else {
 		if(vq->active) {
 			vq->active = 0;
@@ -244,6 +257,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		}
 	}
 
+	// TODO: get rid of all this
 	if(vq->tokens == 0) {
 		/* We've run out of tokens.  Borrow in proportion to our
 		   rate */
@@ -254,7 +268,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq_total_tokens -= borrow;
 			vq->tokens += borrow;
 			/* Don't accumulate infinitely many tokens */
-			vq->tokens = min(vq->tokens, 200*1000LLU);
+			vq->tokens = min(vq->tokens, (ISO_VQ_DRAIN_RATE_MBPS * ISO_MAX_BURST_TIME_US) >> 3);
 			spin_unlock_irq(&vq_spinlock);
 		}
 	}
@@ -271,12 +285,11 @@ void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
 	struct iso_vq_stats *stats;
 
 	iso_class_show(vq->klass, buff);
-	seq_printf(s, "vq class %s   flags %d,%d,%d   rate %llu   backlog %llu   weight %llu"
-			   "   refcnt %d   tokens %llu\n",
+	seq_printf(s, "vq class %s   flags %d,%d,%d   rate %llu  rx_rate %llu  fb_rate %llu  "
+			   " backlog %llu   weight %llu   refcnt %d   tokens %llu\n",
 			   buff, vq->enabled, vq->active, vq->is_static,
-			   vq->rate, vq->backlog, vq->weight,
-			   atomic_read(&vq->refcnt),
-			   vq->tokens);
+			   vq->rate, vq->rx_rate, vq->feedback_rate,
+			   vq->backlog, vq->weight, atomic_read(&vq->refcnt), vq->tokens);
 
 	for_each_online_cpu(i) {
 		if(first) {

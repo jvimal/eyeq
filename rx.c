@@ -23,8 +23,6 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	struct iso_per_dest_state *state;
 	struct iso_vq *vq;
 	struct iso_vq_stats *stats;
-	struct iso_rc_state *rc;
-	int changed;
 	enum iso_verdict verdict = ISO_VERDICT_SUCCESS;
 
 	rcu_read_lock();
@@ -44,12 +42,10 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	state = iso_state_get(txc, skb, 1, ISO_CREATE_RL && iso_is_feedback_marked(skb));
 
 	if(likely(state != NULL)) {
-		rc = &state->tx_rc;
-		changed = iso_rc_rx(rc, skb);
-
+		int rate = skb_has_feedback(skb);
 		/* XXX: for now */
-		if(changed && ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE)
-			state->rl->rate = rc->rfair;
+		if((ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) && (rate != 0))
+			state->rl->rate = rate;
 
 		if(unlikely(iso_is_generated_feedback(skb)))
 			verdict = ISO_VERDICT_DROP;
