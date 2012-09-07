@@ -105,12 +105,7 @@ static inline struct iso_vq *iso_vq_find(iso_class_t klass) {
 
 
 static inline int iso_vq_over_limits(struct iso_vq *vq) {
-	// return vq->backlog > ISO_VQ_MARK_THRESH_BYTES;
-	int delta = vq->backlog - ISO_VQ_MARK_THRESH_BYTES;
-	if(delta < 0) return 0;
-	/* Quantize to 8 bits.  Shift by 9, because:
-	 * max_backlog - ISO_VQ_MARK_THRESH_BYTES = 128 * 1024 */
-	return delta >> 9;
+	return vq->feedback_rate;
 }
 
 static inline int iso_vq_active(struct iso_vq *vq) {
