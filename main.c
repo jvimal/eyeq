@@ -74,7 +74,8 @@ static int iso_init() {
 		goto out;
 
 	ret = 0;
-
+	__prev__ISO_GSO_MAX_SIZE = iso_netdev->gso_max_size;
+	netif_set_gso_max_size(iso_netdev, ISO_GSO_MAX_SIZE);
  out:
 	return ret;
 }
@@ -90,6 +91,7 @@ static void iso_exit() {
 	iso_tx_exit();
 	iso_rx_exit();
 	iso_params_exit();
+	netif_set_gso_max_size(iso_netdev, __prev__ISO_GSO_MAX_SIZE);
 	dev_put(iso_netdev);
 
 	printk(KERN_INFO "perfiso: goodbye.\n");
