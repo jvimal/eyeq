@@ -41,6 +41,8 @@ struct iso_vq {
 	u64 rate;
 	u64 total_bytes_queued;
 	u64 backlog;
+	u64 feedback_rate;
+	u64 last_rx;
 
 	u64 weight;
 

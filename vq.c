@@ -71,9 +71,11 @@ int iso_vq_init(struct iso_vq *vq) {
 	vq->enabled = 1;
 	vq->active = 0;
 	vq->is_static = 0;
-	vq->rate = 1;
+	vq->rate = ISO_MIN_RFAIR;
 	vq->total_bytes_queued = 0;
 	vq->backlog = 0;
+	vq->feedback_rate = ISO_MIN_RFAIR;
+	vq->last_rx = 0;
 	vq->weight = 1;
 	vq->last_update_time = vq->last_borrow_time = ktime_get();
 
