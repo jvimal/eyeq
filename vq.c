@@ -75,7 +75,8 @@ int iso_vq_init(struct iso_vq *vq) {
 	vq->total_bytes_queued = 0;
 	vq->backlog = 0;
 	vq->feedback_rate = ISO_MIN_RFAIR;
-	vq->last_rx = 0;
+	vq->last_rx_bytes = 0;
+	vq->rx_rate = 0;
 	vq->weight = 1;
 	vq->last_update_time = vq->last_borrow_time = ktime_get();
 
@@ -242,13 +243,13 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		/* RCP calculation */
 		{
 			int rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
-			u64 diff = rx_bytes - vq->last_rx;
+			u64 diff = rx_bytes - vq->last_rx_bytes;
 			int rx_rate = (diff << 3) / dt;
 			vq->feedback_rate = vq->feedback_rate * (3 * rate - rx_rate) / (rate << 1);
-			vq->feedback_rate = min(rate, vq->feedback_rate);
-			vq->feedback_rate = max(ISO_MIN_RFAIR, vq->feedback_rate);
+			vq->feedback_rate = min_t(u64, rate, vq->feedback_rate);
+			vq->feedback_rate = max_t(u64, ISO_MIN_RFAIR, vq->feedback_rate);
 			vq->rx_rate = rx_rate;
-			vq->last_rx = rx_bytes;
+			vq->last_rx_bytes = rx_bytes;
 		}
 	} else {
 		if(vq->active) {
@@ -268,7 +269,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq_total_tokens -= borrow;
 			vq->tokens += borrow;
 			/* Don't accumulate infinitely many tokens */
-			vq->tokens = min(vq->tokens, (ISO_VQ_DRAIN_RATE_MBPS * ISO_MAX_BURST_TIME_US) >> 3);
+			vq->tokens = min_t(u64, vq->tokens, (ISO_VQ_DRAIN_RATE_MBPS * ISO_MAX_BURST_TIME_US) >> 3);
 			spin_unlock_irq(&vq_spinlock);
 		}
 	}
