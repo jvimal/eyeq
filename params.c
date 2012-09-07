@@ -52,9 +52,6 @@ int ISO_VQ_REFRESH_INTERVAL_US = 500;
 int ISO_MAX_QUEUE_LEN_BYTES = 128 * 1024;
 int ISO_TX_MARK_THRESH = 100 * 1024;
 
-// current GSO segment size
-int __prev__ISO_GSO_MAX_SIZE;
-
 struct iso_param iso_params[64] = {
   {"ISO_FALPHA", &ISO_FALPHA },
   {"ISO_MAX_TX_RATE", &ISO_MAX_TX_RATE },

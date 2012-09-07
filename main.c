@@ -28,6 +28,8 @@ void iso_rx_hook_exit(void);
 void iso_tx_hook_exit(void);
 
 int iso_exiting;
+/* Current device's GSO size */
+static int __prev__ISO_GSO_MAX_SIZE;
 
 static int iso_init() {
 	int i, ret = -1;
