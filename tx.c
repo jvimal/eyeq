@@ -74,10 +74,18 @@ inline void iso_txc_tick() {
 			rl = &txc->rl;
 			last_xmit = rl->accum_xmit;
 			iso_rl_accum(rl);
-			min_xmit = ((txc->vrate * dt) >> 3);
+			min_xmit = ((txc->rl.rate * dt) >> 3);
 
-			txc->active = (rl->accum_enqueued > 3000) ||
-				((rl->accum_xmit - last_xmit) > min_xmit);
+			if((rl->accum_enqueued > 3000) ||
+			   ((rl->accum_xmit - last_xmit) > 3 * min_xmit / 4)) {
+				txc->active = 1;
+			} else {
+				txc->idle_count += 1;
+				if(txc->idle_count >= 10) {
+					txc->active = 0;
+					txc->idle_count = 0;
+				}
+			}
 
 			if(txc->active)
 				active_weight += txc->weight;
@@ -95,12 +103,13 @@ inline void iso_txc_tick() {
 			}
 
 			if(txc->active) {
-				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / active_weight;
 				txc->vrate = txc->rl.rate;
+				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / active_weight;
 			} else {
 				/* Set small rate so we know when the class becomes active  */
+				int rate = ISO_MAX_TX_RATE * txc->weight / total_weight;
 				txc->vrate = 10;
-				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / total_weight;
+				txc->rl.rate = (txc->rl.rate + rate) / 2;
 			}
 		}
 	skip:
@@ -126,7 +135,8 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 		sprintf(vqc, "(none)");
 	}
 
-	seq_printf(s, "txc class %s   assoc vq %s   freelist %d\n", buff, vqc, txc->freelist_count);
+	seq_printf(s, "txc class %s   assoc vq %s   freelist %d  idletick %d\n",
+			   buff, vqc, txc->freelist_count, txc->idle_count);
 	seq_printf(s, "txc rl tx_rate %u,%u   rate %u   xmit %llu   queued %llu\n",
 			   txc->tx_rate, txc->tx_rate_smooth, txc->rl.rate,
 			   txc->rl.accum_xmit, txc->rl.accum_enqueued);
@@ -329,6 +339,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	txc->vrate = 100;
 	txc->tx_rate = 0;
 	txc->tx_rate_smooth = 0;
+	txc->idle_count = 0;
 
 	INIT_WORK(&txc->allocator, iso_txc_allocator);
 }
