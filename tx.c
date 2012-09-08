@@ -76,12 +76,11 @@ inline void iso_txc_tick() {
 			iso_rl_accum(rl);
 			min_xmit = ((txc->rl.rate * dt) >> 3);
 
-			if((rl->accum_enqueued > 3000) ||
-			   ((rl->accum_xmit - last_xmit) > 3 * min_xmit / 4)) {
+			if((rl->accum_xmit - last_xmit) >= min_xmit) {
 				txc->active = 1;
 			} else {
 				txc->idle_count += 1;
-				if(txc->idle_count >= 10) {
+				if(txc->idle_count >= 1) {
 					txc->active = 0;
 					txc->idle_count = 0;
 				}
