@@ -253,9 +253,13 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			int rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
 			u64 diff = rx_bytes - vq->last_rx_bytes;
 			int rx_rate = (diff << 3) / dt;
-			vq->feedback_rate = vq->feedback_rate * (3 * rate - rx_rate) / (rate << 1);
-			vq->feedback_rate = min_t(u64, rate, vq->feedback_rate);
-			vq->feedback_rate = max_t(u64, ISO_MIN_RFAIR, vq->feedback_rate);
+			if(ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) {
+				vq->feedback_rate = vq->feedback_rate * (3 * rate - rx_rate) / (rate << 1);
+				vq->feedback_rate = min_t(u64, rate, vq->feedback_rate);
+				vq->feedback_rate = max_t(u64, ISO_MIN_RFAIR, vq->feedback_rate);
+			} else {
+				vq->feedback_rate = ISO_MAX_TX_RATE;
+			}
 			vq->rx_rate = rx_rate;
 			vq->last_rx_bytes = rx_bytes;
 		}
