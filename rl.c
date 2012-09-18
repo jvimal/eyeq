@@ -156,6 +156,8 @@ inline void iso_rl_clock(struct iso_rl *rl) {
 
 	now = ktime_get();
 	us = ktime_us_delta(now, rl->last_update_time);
+	if(us > ISO_IDLE_TIMEOUT_US && rl->rate > ISO_IDLE_RATE)
+		rl->rate = ISO_IDLE_RATE;
 	rl->total_tokens += (rl->rate * us) >> 3;
 
 	/* This is needed if we have TSO.  MIN_BURST_BYTES will be ~64K */
@@ -263,7 +265,7 @@ void iso_rl_dequeue(unsigned long _q) {
 	/* XXX: this should be size <= q->tokens, but it somehow works.
 	 * Maybe it has better fairness :-? */
 
-	while(size <= q->tokens) {
+	while(size <= q->tokens && sum <= ISO_MIN_BURST_BYTES * 2) {
 		pkt = __skb_dequeue(skq);
 		q->tokens -= size;
 		q->bytes_enqueued -= size;
