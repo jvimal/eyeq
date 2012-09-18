@@ -50,6 +50,7 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 	ktime_t last;
 	ktime_t dt;
 	int count = 0;
+	u32 sent = 0;
 
 #define budget 500
 
@@ -65,14 +66,14 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 
 	list_for_each_entry_safe(q, qtmp, &cb->active_list, active_list) {
 		count++;
-		if(qtmp == first || count++ > budget) {
+		if(qtmp == first || count++ > budget || sent > 2 * ISO_MIN_BURST_BYTES) {
 			/* Break out of looping */
 			break;
 		}
 
 		list_del_init(&q->active_list);
 		iso_rl_clock(q->rl);
-		iso_rl_dequeue((unsigned long)q);
+		sent += iso_rl_dequeue((unsigned long)q);
 	}
 
 	if(!list_empty(&cb->active_list) && !iso_exiting) {
@@ -231,7 +232,7 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 }
 
 /* This function MUST be executed with interrupts enabled */
-void iso_rl_dequeue(unsigned long _q) {
+u32 iso_rl_dequeue(unsigned long _q) {
 	int timeout = 0;
 	u64 sum = 0;
 	u32 size;
@@ -315,6 +316,8 @@ timeout:
 		if(!hrtimer_active(&cb->timer))
 			hrtimer_start(&cb->timer, iso_rl_gettimeout(), HRTIMER_MODE_REL_PINNED);
 	}
+
+	return sum;
 }
 
 /* HARDIRQ timeout */
