@@ -87,6 +87,7 @@ void iso_rl_init(struct iso_rl *rl) {
 	rl->rate = ISO_RFAIR_INITIAL;
 	rl->total_tokens = 15000;
 	rl->last_update_time = ktime_get();
+	rl->last_rate_update_time = ktime_get();
 	rl->queue = alloc_percpu(struct iso_rl_queue);
 	rl->accum_xmit = 0;
 	rl->accum_enqueued = 0;
@@ -149,7 +150,7 @@ void iso_rl_show(struct iso_rl *rl, struct seq_file *s) {
 
 /* This function could be called from HARDIRQ context */
 inline void iso_rl_clock(struct iso_rl *rl) {
-	u64 cap, us;
+	u64 cap, us, us2;
 	ktime_t now;
 
 	if(!iso_rl_should_refill(rl))
@@ -159,6 +160,13 @@ inline void iso_rl_clock(struct iso_rl *rl) {
 	us = ktime_us_delta(now, rl->last_update_time);
 	if(us > ISO_IDLE_TIMEOUT_US && rl->rate > ISO_IDLE_RATE)
 		rl->rate = ISO_IDLE_RATE;
+	us2 = ktime_us_delta(now, rl->last_rate_update_time);
+	if(us2 > ISO_RFAIR_FEEDBACK_TIMEOUT_US) {
+		rl->rate >>= 1;
+		rl->rate = max_t(int, 2, rl->rate);
+		rl->last_rate_update_time = now;
+	}
+
 	rl->total_tokens += (rl->rate * us) >> 3;
 
 	/* This is needed if we have TSO.  MIN_BURST_BYTES will be ~64K */

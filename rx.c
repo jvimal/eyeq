@@ -53,6 +53,7 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 					dt = ktime_us_delta(now, rc->last_rfair_change_time);
 					if(dt >= ISO_RFAIR_DECREASE_INTERVAL_US) {
 						state->rl->rate = rate;
+						state->rl->last_rate_update_time = now;
 						rc->last_rfair_change_time = now;
 					}
 					spin_unlock(&rc->spinlock);

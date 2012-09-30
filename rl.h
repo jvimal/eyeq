@@ -56,6 +56,7 @@ struct iso_rl {
 	u64 accum_enqueued;
 
 	ktime_t last_update_time;
+	ktime_t last_rate_update_time;
 
 	struct iso_rl_queue __percpu *queue;
 	struct hlist_node hash_node;
