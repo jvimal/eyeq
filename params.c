@@ -11,11 +11,10 @@
 
 // params
 int ISO_FALPHA = 8;
-/* All rates are in Mbps */
-int ISO_MAX_TX_RATE = 10000;
-// The VQ's net drain rate in Mbps is 90% of 10G ~ 9000 Mbps
-/* TODO: explain why this is 8500 and not 9000!  hint: due to GRO */
-int ISO_VQ_DRAIN_RATE_MBPS = 10000;
+/* All rates are in Mb/s.  This 9800 instead of 10000 accounts for
+ * Ethernet framing overheads. */
+int ISO_MAX_TX_RATE = 9800;
+int ISO_VQ_DRAIN_RATE_MBPS = 9000;
 int ISO_MAX_BURST_TIME_US = 150;
 int ISO_MIN_BURST_BYTES = 65536;
 int ISO_RATEMEASURE_INTERVAL_US = 1000 * 100;
