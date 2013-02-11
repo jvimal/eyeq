@@ -23,13 +23,14 @@ struct iso_rx_context *iso_rxctx_dev(const struct net_device *dev) {
 #endif
 
 int iso_rx_init(struct iso_rx_context *context) {
-	printk(KERN_INFO "perfiso: Init RX path\n");
+	printk(KERN_INFO "perfiso: Init RX path for %s\n", context->netdev->name);
 	iso_vqs_init(context);
 	list_add_tail(&context->list, &rxctx_list);
 	return iso_rx_hook_init(context);
 }
 
 void iso_rx_exit(struct iso_rx_context *context) {
+	printk(KERN_INFO "perfiso: Exit RX path for %s\n", context->netdev->name);
 	list_del_init(&context->list);
 	iso_vqs_exit(context);
 	iso_rx_hook_exit(context);

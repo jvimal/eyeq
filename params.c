@@ -132,7 +132,7 @@ void iso_params_exit() {
  * echo -n eth0 > /sys/module/perfiso/parameters/create_txc
  *
  * If compiled with CLASS_ETHER_SRC
- * echo -n dev 00:00:00:00:01:01 > /sys/module/perfiso/parameters/create_txc
+ * echo -n dev eth0 00:00:00:00:01:01 > /sys/module/perfiso/parameters/create_txc
  */
 static DEFINE_SEMAPHORE(config_mutex);
 static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
@@ -150,7 +150,7 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	if(down_interruptible(&config_mutex))
 		return -EINVAL;
 
-	sscanf(buff, "%s %s", devname, klass);
+	sscanf(buff, "dev %s %s", devname, klass);
 
 	rcu_read_lock();
 	dev = dev_get_by_name_rcu(&init_net, devname);
@@ -186,7 +186,7 @@ module_param_call(create_txc, iso_sys_create_txc, iso_sys_noget, NULL, S_IWUSR);
  * echo -n eth0 > /sys/module/perfiso/parameters/create_vq
  *
  * If compiled with CLASS_ETHER_SRC
- * echo -n dev 00:00:00:00:01:01 > /sys/module/perfiso/parameters/create_vq
+ * echo -n dev eth0 00:00:00:00:01:01 > /sys/module/perfiso/parameters/create_vq
  */
 static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	char buff[128];
@@ -203,7 +203,7 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	if(down_interruptible(&config_mutex))
 		return -EINVAL;
 
-	sscanf(buff, "%s %s", devname, klass);
+	sscanf(buff, "dev %s %s", devname, klass);
 	rcu_read_lock();
 	dev = dev_get_by_name_rcu(&init_net, devname);
 	if (dev && iso_enabled(dev)) {
@@ -279,8 +279,8 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 	txc->vq = vq;
 	atomic_inc(&vq->refcnt);
 
-	printk(KERN_INFO "perfiso: Associated txc %s with vq %s\n",
-		   _txc, _vqc);
+	printk(KERN_INFO "perfiso: Associated txc %s with vq %s on %s\n",
+	       _txc, _vqc, _devname);
  out:
 	if (dev)
 		dev_put(dev);

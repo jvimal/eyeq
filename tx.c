@@ -58,6 +58,7 @@ void iso_tx_exit(struct iso_tx_context *context) {
 
 	iso_rl_exit(context->rlcb);
 	list_del_init(&context->list);
+	printk(KERN_INFO "perfiso: Exit TX path for %s\n", context->netdev->name);
 
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &context->iso_tx_bucket[i];
