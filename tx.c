@@ -44,6 +44,7 @@ int iso_tx_init(struct iso_tx_context *context) {
 		return -1;
 
 	context->txc_total_weight = 0;
+	list_add_tail(&context->list, &txctx_list);
 	return iso_tx_hook_init(context);
 }
 
@@ -63,6 +64,7 @@ void iso_tx_exit(struct iso_tx_context *context) {
 		}
 	}
 
+	list_del_init(&context->list);
 	free_percpu(context->rlcb);
 }
 
@@ -351,7 +353,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	spin_lock_init(&txc->writelock);
 	txc->freelist_count = 0;
 
-	iso_rl_init(&txc->rl);
+	iso_rl_init(&txc->rl, txc->context->rlcb);
 	txc->weight = 1;
 	txc->active = 0;
 	txc->vrate = 100;
@@ -377,6 +379,7 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass, struct iso_tx_context *con
 		return NULL;
 
 	iso_txc_init(txc);
+	txc->context = context;
 	txc->klass = klass;
 
 	/* Preallocate some perdest state and rate limiters.  32 entries
@@ -428,7 +431,7 @@ void iso_txc_prealloc(struct iso_tx_class *txc, int num) {
 		}
 
 		iso_state_init(state);
-		iso_rl_init(rl);
+		iso_rl_init(rl, txc->context->rlcb);
 		rl->txc = txc;
 
 		spin_lock_irqsave(&txc->writelock, flags);

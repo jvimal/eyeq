@@ -35,6 +35,9 @@ extern struct net_device *iso_netdev;
  * Dummy per-dev queue qdisc
  */
 
+extern struct list_head rxctx_list;
+extern struct list_head txctx_list;
+
 static int eyeq_local_init(struct Qdisc *a, struct nlattr *opt)
 {
 	return 0;
@@ -71,9 +74,18 @@ static void mq_destroy(struct Qdisc *sch)
 		return;
 	for (ntx = 0; ntx < dev->num_tx_queues && priv->qdiscs[ntx]; ntx++)
 		qdisc_destroy(priv->qdiscs[ntx]);
-	kfree(priv->qdiscs);
 
-	/* TODO: free the txc and rxc */
+	if (priv->txc) {
+		iso_tx_exit(priv->txc);
+		kfree(priv->txc);
+	}
+
+	if (priv->rxc) {
+		iso_rx_exit(priv->rxc);
+		kfree(priv->rxc);
+	}
+
+	kfree(priv->qdiscs);
 }
 
 static int mq_init(struct Qdisc *sch, struct nlattr *opt)
@@ -92,11 +104,27 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 	if (!netif_is_multiqueue(dev))
 		return -EOPNOTSUPP;
 
+	priv->txc = priv->rxc = NULL;
+
 	/* pre-allocate qdiscs, attachment can't fail */
 	priv->qdiscs = kcalloc(dev->num_tx_queues, sizeof(priv->qdiscs[0]),
 			       GFP_KERNEL);
 	if (priv->qdiscs == NULL)
 		return -ENOMEM;
+
+	priv->txc = kzalloc(sizeof(struct iso_tx_context), GFP_KERNEL);
+	if (priv->txc == NULL)
+		goto err;
+
+	priv->rxc = kzalloc(sizeof(struct iso_rx_context), GFP_KERNEL);
+	if (priv->rxc == NULL)
+		goto err;
+
+	if (iso_tx_init(priv->txc))
+		goto err;
+
+	if (iso_rx_init(priv->rxc))
+		goto err;
 
 	for (ntx = 0; ntx < dev->num_tx_queues; ntx++) {
 		dev_queue = netdev_get_tx_queue(dev, ntx);

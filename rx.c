@@ -6,6 +6,8 @@
 
 int iso_rx_hook_init(struct iso_rx_context *);
 
+struct list_head rxctx_list;
+
 #ifdef QDISC
 struct iso_rx_context *iso_rxctx_dev(const struct net_device *dev) {
 	struct Qdisc *qdisc = dev->qdisc;
@@ -22,10 +24,12 @@ struct iso_rx_context *iso_rxctx_dev(const struct net_device *dev) {
 int iso_rx_init(struct iso_rx_context *context) {
 	printk(KERN_INFO "perfiso: Init RX path\n");
 	iso_vqs_init(context);
+	list_add_tail(&context->list, &txctx_list);
 	return iso_rx_hook_init(context);
 }
 
 void iso_rx_exit(struct iso_rx_context *context) {
+	list_del_init(&context->list);
 	iso_vqs_exit(context);
 }
 

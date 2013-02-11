@@ -46,6 +46,8 @@ struct iso_rl_queue {
 	struct list_head active_list;
 };
 
+struct iso_rl_cb;
+
 struct iso_rl {
 	u32 rate;
 	spinlock_t spinlock;
@@ -63,6 +65,7 @@ struct iso_rl {
 	struct list_head prealloc_list;
 
 	struct iso_tx_class *txc;
+	struct iso_rl_cb *rlcb;
 };
 
 /* The per-cpu control block for rate limiters */
@@ -79,9 +82,9 @@ struct iso_rl_cb {
 int iso_rl_prep(struct iso_rl_cb __percpu **rlcb);
 void iso_rl_exit(struct iso_rl_cb __percpu *rlcb);
 void iso_rl_xmit_tasklet(unsigned long _cb);
-extern struct iso_rl_cb __percpu *rlcb;
+//extern struct iso_rl_cb __percpu *rlcb;
 
-void iso_rl_init(struct iso_rl *);
+void iso_rl_init(struct iso_rl *, struct iso_rl_cb *);
 void iso_rl_free(struct iso_rl *);
 void iso_rl_show(struct iso_rl *, struct seq_file *);
 static inline int iso_rl_should_refill(struct iso_rl *);

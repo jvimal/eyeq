@@ -51,6 +51,9 @@ static int iso_init() {
 		}
 	}
 
+	INIT_LIST_HEAD(&rxctx_list);
+	INIT_LIST_HEAD(&txctx_list);
+
 #ifdef QDISC
 	if (register_qdisc(&mq_qdisc_ops))
 		goto out;

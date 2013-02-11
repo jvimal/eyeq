@@ -53,6 +53,7 @@ struct iso_tx_class {
 
 	/* Allocate from process context */
 	struct work_struct allocator;
+	struct iso_tx_context *context;
 };
 
 /*
