@@ -29,8 +29,8 @@ struct net_device *iso_netdev;
 static int iso_init(void);
 static void iso_exit(void);
 
-void iso_rx_hook_exit(void);
-void iso_tx_hook_exit(void);
+void iso_rx_hook_exit(struct iso_rx_context *);
+void iso_tx_hook_exit(struct iso_tx_context *);
 
 int iso_exiting;
 #ifndef QDISC
@@ -65,11 +65,11 @@ static int iso_init() {
 		goto out;
 
 	if(iso_stats_init())
-		goto out;
+		goto out_1;
 
 #ifdef QDISC
 	if (eyeq_qdisc_register())
-		goto out;
+		goto out_2;
 #else
 	rcu_read_lock();
 	iso_netdev = dev_get_by_name(&init_net, iso_param_dev);
@@ -77,8 +77,17 @@ static int iso_init() {
 
 	if(iso_netdev == NULL) {
 		printk(KERN_INFO "perfiso: device %s not found", iso_param_dev);
-		goto out;
+		goto out_3;
 	}
+
+	global_rxcontext.netdev = iso_netdev;
+	global_txcontext.netdev = iso_netdev;
+
+	if (iso_rx_init(&global_rxcontext))
+		goto out_4;
+
+	if (iso_tx_init(&global_txcontext))
+		goto out_5;
 
 	printk(KERN_INFO "perfiso: operating on %s (%p)\n",
 	       iso_param_dev, iso_netdev);
@@ -88,6 +97,22 @@ static int iso_init() {
 #endif
 
 	ret = 0;
+	goto out;
+
+	/* Free up resources */
+	iso_tx_exit(&global_txcontext);
+out_5:
+	iso_rx_exit(&global_rxcontext);
+out_4:
+	dev_put(iso_netdev);
+out_3:
+#ifdef QDISC
+	eyeq_qdisc_unregister();
+out_2:
+#endif
+	iso_stats_exit();
+out_1:
+	iso_params_exit();
  out:
 	return ret;
 }
@@ -96,17 +121,16 @@ static void iso_exit() {
 	iso_exiting = 1;
 	mb();
 
-/*
-	iso_tx_hook_exit();
-	iso_rx_hook_exit();
-	iso_tx_exit();
-	iso_rx_exit();
-*/
 	iso_stats_exit();
 	iso_params_exit();
 #ifdef QDISC
 	eyeq_qdisc_unregister();
 #else
+	iso_tx_hook_exit(&global_txcontext);
+	iso_rx_hook_exit(&global_rxcontext);
+	iso_tx_exit(&global_txcontext);
+	iso_rx_exit(&global_rxcontext);
+
 	netif_set_gso_max_size(iso_netdev, __prev__ISO_GSO_MAX_SIZE);
 	dev_put(iso_netdev);
 #endif

@@ -3,9 +3,12 @@
 
 
 #include <linux/types.h>
+#include <net/pkt_sched.h>
+
 #ifdef QDISC
 #include "qdisc.h"
-#include <net/pkt_sched.h>
+#else
+extern struct net_device *iso_netdev;
 #endif
 
 extern int ISO_FALPHA;
