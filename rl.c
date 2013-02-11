@@ -2,20 +2,20 @@
 #include "rl.h"
 #include "tx.h"
 
-struct iso_rl_cb __percpu *rlcb;
+// struct iso_rl_cb __percpu *rlcb;
 extern int iso_exiting;
 
 /* Called the first time when the module is initialised */
-int iso_rl_prep() {
+int iso_rl_prep(struct iso_rl_cb __percpu **rlcb) {
 	int cpu;
 
-	rlcb = alloc_percpu(struct iso_rl_cb);
-	if(rlcb == NULL)
+	*rlcb = alloc_percpu(struct iso_rl_cb);
+	if(*rlcb == NULL)
 		return -1;
 
 	/* Init everything; but what about hotplug?  Hmm... */
 	for_each_possible_cpu(cpu) {
-		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, cpu);
+		struct iso_rl_cb *cb = per_cpu_ptr(*rlcb, cpu);
 		spin_lock_init(&cb->spinlock);
 
 		hrtimer_init(&cb->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED);
@@ -32,7 +32,7 @@ int iso_rl_prep() {
 	return 0;
 }
 
-void iso_rl_exit() {
+void iso_rl_exit(struct iso_rl_cb __percpu *rlcb) {
 	int cpu;
 
 	for_each_possible_cpu(cpu) {

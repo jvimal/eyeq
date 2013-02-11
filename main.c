@@ -51,6 +51,11 @@ static int iso_init() {
 		}
 	}
 
+#ifdef QDISC
+	if (register_qdisc(&mq_qdisc_ops))
+		goto out;
+#endif
+
 	rcu_read_lock();
 	iso_netdev = dev_get_by_name(&init_net, iso_param_dev);
 	rcu_read_unlock();
@@ -66,11 +71,13 @@ static int iso_init() {
 	if(iso_params_init())
 		goto out;
 
+/*
 	if(iso_rx_init())
 		goto out;
 
 	if(iso_tx_init())
 		goto out;
+*/
 
 	if(iso_stats_init())
 		goto out;
@@ -86,16 +93,19 @@ static void iso_exit() {
 	iso_exiting = 1;
 	mb();
 
+/*
 	iso_tx_hook_exit();
 	iso_rx_hook_exit();
-
-	iso_stats_exit();
 	iso_tx_exit();
 	iso_rx_exit();
+*/
+	iso_stats_exit();
 	iso_params_exit();
 	netif_set_gso_max_size(iso_netdev, __prev__ISO_GSO_MAX_SIZE);
 	dev_put(iso_netdev);
-
+#ifdef QDISC
+	unregister_qdisc(&mq_qdisc_ops);
+#endif
 	printk(KERN_INFO "perfiso: goodbye.\n");
 }
 

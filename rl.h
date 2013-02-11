@@ -76,8 +76,8 @@ struct iso_rl_cb {
 	int cpu;
 };
 
-int iso_rl_prep(void);
-void iso_rl_exit(void);
+int iso_rl_prep(struct iso_rl_cb __percpu **rlcb);
+void iso_rl_exit(struct iso_rl_cb __percpu *rlcb);
 void iso_rl_xmit_tasklet(unsigned long _cb);
 extern struct iso_rl_cb __percpu *rlcb;
 

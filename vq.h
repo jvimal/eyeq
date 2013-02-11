@@ -23,6 +23,7 @@
 
 #include "params.h"
 #include "tx.h"
+#include "rx.h"
 
 struct iso_vq_stats {
 	u64 bytes_queued;
@@ -58,40 +59,41 @@ struct iso_vq {
 
 	/* The number of tx classes referring to this VQ */
 	atomic_t refcnt;
+	struct iso_rx_context *rxctx;
 };
 
+/*
 extern struct list_head vq_list;
 extern s64 vq_total_tokens;
 extern ktime_t vq_last_update_time, vq_last_check_time;
 extern atomic_t vq_active_rate;
+extern struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
+*/
 
-#define for_each_vq(vq) list_for_each_entry_safe(vq, vq_next, &vq_list, list)
+#define for_each_vq(vq, ctx) list_for_each_entry_safe(vq, vq_next, &ctx->vq_list, list)
 #define ISO_VQ_DEFAULT_RATE_MBPS (100) /* This parameter shouldn't matter */
 
-void iso_vqs_init(void);
-void iso_vqs_exit(void);
+void iso_vqs_init(struct iso_rx_context *);
+void iso_vqs_exit(struct iso_rx_context *);
 int iso_vq_init(struct iso_vq *);
-struct iso_vq *iso_vq_alloc(iso_class_t);
+struct iso_vq *iso_vq_alloc(iso_class_t, struct iso_rx_context *);
 void iso_vq_free(struct iso_vq *);
 void iso_vq_enqueue(struct iso_vq *, struct sk_buff *);
 static inline int iso_vq_active(struct iso_vq *);
-void iso_vq_tick(u64);
+void iso_vq_tick(u64, struct iso_rx_context *);
 void iso_vq_drain(struct iso_vq *, u64);
 static inline int iso_vq_over_limits(struct iso_vq *);
-inline void iso_vq_global_tick(void);
-void iso_vq_calculate_rates(void);
-void iso_vq_check_idle(void);
+inline void iso_vq_global_tick(struct iso_rx_context *);
+void iso_vq_calculate_rates(struct iso_rx_context *);
+void iso_vq_check_idle(struct iso_rx_context *);
 
-static inline struct iso_vq *iso_vq_find(iso_class_t);
+static inline struct iso_vq *iso_vq_find(iso_class_t, struct iso_rx_context *);
 void iso_vq_show(struct iso_vq *, struct seq_file *);
 
-
-extern struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
-
 /* Called with rcu lock */
-static inline struct iso_vq *iso_vq_find(iso_class_t klass) {
+static inline struct iso_vq *iso_vq_find(iso_class_t klass, struct iso_rx_context *rxctx) {
 	u32 hash = iso_class_hash(klass);
-	struct hlist_head *head = &vq_bucket[hash & (ISO_MAX_VQ_BUCKETS - 1)];
+	struct hlist_head *head = &rxctx->vq_bucket[hash & (ISO_MAX_VQ_BUCKETS - 1)];
 	struct hlist_node *node;
 	struct iso_vq *vq;
 

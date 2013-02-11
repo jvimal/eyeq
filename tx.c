@@ -5,49 +5,68 @@
 #include "vq.h"
 
 extern char *iso_param_dev;
+
+/* Just in case we chose the other -DDIRECT option */
+struct list_head txctx_list;
+
+#ifdef QDISC
+struct iso_tx_context *iso_txctx_dev(const struct net_device *dev) {
+	struct Qdisc *qdisc = dev->qdisc;
+	struct mq_sched *mq = qdisc_priv(qdisc);
+	return mq->txc;
+}
+#else
+struct iso_tx_context global_txcontext;
+struct iso_tx_context *iso_txctx_dev(const struct net_device *dev) {
+	return &global_txcontext;
+}
+#endif
+
+/*
 extern struct net_device *iso_netdev;
 struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
 struct list_head txc_list;
 ktime_t txc_last_update_time;
 int txc_total_weight;
 spinlock_t txc_spinlock;
+*/
 extern int iso_exiting;
 
-int iso_tx_hook_init(void);
+int iso_tx_hook_init(struct iso_tx_context *);
 
-int iso_tx_init() {
-	printk(KERN_INFO "perfiso: Init TX path\n");
+int iso_tx_init(struct iso_tx_context *context) {
+	printk(KERN_INFO "perfiso: Init TX path for %s\n", context->netdev->name);
 
-	INIT_LIST_HEAD(&txc_list);
-	txc_last_update_time = ktime_get();
-	spin_lock_init(&txc_spinlock);
-	if(iso_rl_prep())
+	INIT_LIST_HEAD(&context->txc_list);
+	context->txc_last_update_time = ktime_get();
+	spin_lock_init(&context->txc_spinlock);
+	if(iso_rl_prep(&context->rlcb))
 		return -1;
 
-	txc_total_weight = 0;
-	return iso_tx_hook_init();
+	context->txc_total_weight = 0;
+	return iso_tx_hook_init(context);
 }
 
-void iso_tx_exit() {
+void iso_tx_exit(struct iso_tx_context *context) {
 	int i;
 	struct hlist_head *head;
 	struct hlist_node *node, *nextnode;
 	struct iso_tx_class *txc;
 
-	iso_rl_exit();
+	iso_rl_exit(context->rlcb);
 
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
-		head = &iso_tx_bucket[i];
+		head = &context->iso_tx_bucket[i];
 		hlist_for_each_entry_safe(txc, nextnode, node, head, hash_node) {
 			hlist_del(&txc->hash_node);
 			iso_txc_free(txc);
 		}
 	}
 
-	free_percpu(rlcb);
+	free_percpu(context->rlcb);
 }
 
-inline void iso_txc_tick() {
+inline void iso_txc_tick(struct iso_tx_context *context) {
 	ktime_t now;
 	u64 dt;
 	unsigned long flags;
@@ -56,21 +75,21 @@ inline void iso_txc_tick() {
 	u64 total_weight, active_weight, min_xmit, last_xmit;
 
 	now = ktime_get();
-	dt = ktime_us_delta(now, txc_last_update_time);
+	dt = ktime_us_delta(now, context->txc_last_update_time);
 
 	if(likely(dt < ISO_TXC_UPDATE_INTERVAL_US))
 		return;
 
-	if(spin_trylock_irqsave(&txc_spinlock, flags)) {
-		dt = ktime_us_delta(now, txc_last_update_time);
+	if(spin_trylock_irqsave(&context->txc_spinlock, flags)) {
+		dt = ktime_us_delta(now, context->txc_last_update_time);
 		if(unlikely(dt < ISO_TXC_UPDATE_INTERVAL_US))
 			goto skip;
 
-		txc_last_update_time = now;
+		context->txc_last_update_time = now;
 		active_weight = 0;
 		total_weight = 0;
 
-		for_each_txc(txc) {
+		for_each_txc(txc, context) {
 			rl = &txc->rl;
 			last_xmit = rl->accum_xmit;
 			iso_rl_accum(rl);
@@ -94,7 +113,7 @@ inline void iso_txc_tick() {
 		}
 
 		/* TODO: Clamp rates */
-		for_each_txc(txc) {
+		for_each_txc(txc, context) {
 			/* Quick shortcut to disable TX rate limiting */
 			if(unlikely(ISO_VQ_DRAIN_RATE_MBPS > 10000)) {
 				txc->rl.rate = ISO_MAX_TX_RATE;
@@ -112,7 +131,7 @@ inline void iso_txc_tick() {
 			}
 		}
 	skip:
-		spin_unlock_irqrestore(&txc_spinlock, flags);
+		spin_unlock_irqrestore(&context->txc_spinlock, flags);
 	}
 }
 
@@ -170,7 +189,7 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	seq_printf(s, "\n");
 }
 
-enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
+enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out, struct iso_tx_context *context)
 {
 	struct iso_tx_class *txc;
 	struct iso_per_dest_state *state;
@@ -181,9 +200,9 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 
 	rcu_read_lock();
 
-	iso_txc_tick();
+	iso_txc_tick(context);
 
-	txc = iso_txc_find(iso_txc_classify(skb));
+	txc = iso_txc_find(iso_txc_classify(skb), context);
 	if(txc == NULL)
 		goto accept;
 
@@ -208,9 +227,9 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out)
 /* Called with rcu lock */
 struct iso_per_dest_state
 *iso_state_get(struct iso_tx_class *txc,
-							 struct sk_buff *skb,
-							 int rx,
-							 enum iso_create_t create_flags)
+	       struct sk_buff *skb,
+	       int rx,
+	       enum iso_create_t create_flags)
 {
 	struct ethhdr *eth;
 	struct iphdr *iph;
@@ -349,7 +368,7 @@ void iso_txc_allocator(struct work_struct *work) {
 }
 
 /* Can sleep */
-struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
+struct iso_tx_class *iso_txc_alloc(iso_class_t klass, struct iso_tx_context *context) {
 	struct iso_tx_class *txc;
 	struct hlist_head *head;
 
@@ -365,11 +384,11 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass) {
 	iso_txc_prealloc(txc, 32);
 
 	rcu_read_lock();
-	head = iso_txc_find_bucket(klass);
+	head = iso_txc_find_bucket(klass, context);
 	hlist_add_head_rcu(&txc->hash_node, head);
-	list_add_tail_rcu(&txc->list, &txc_list);
-	txc_total_weight += txc->weight;
-	iso_txc_recompute_rates();
+	list_add_tail_rcu(&txc->list, &context->txc_list);
+	context->txc_total_weight += txc->weight;
+	iso_txc_recompute_rates(context);
 	rcu_read_unlock();
 
 	return txc;
@@ -537,19 +556,19 @@ int iso_txc_ether_src_install(char *hwaddr) {
 	return ret;
 }
 #elif defined (ISO_TX_CLASS_MARK) || defined (ISO_TX_CLASS_IPADDR)
-int iso_txc_mark_install(char *mark) {
+int iso_txc_mark_install(char *mark, struct iso_tx_context *context) {
 	iso_class_t m = iso_class_parse(mark);
 	struct iso_tx_class *txc;
 	int ret = 0;
 
 	/* Check if we have already created */
-	txc = iso_txc_find(m);
+	txc = iso_txc_find(m, context);
 	if(txc != NULL) {
 		ret = -1;
 		goto end;
 	}
 
-	txc = iso_txc_alloc(m);
+	txc = iso_txc_alloc(m, context);
 	if(txc == NULL) {
 		ret = -1;
 		goto end;
@@ -560,14 +579,14 @@ int iso_txc_mark_install(char *mark) {
 }
 #endif
 
-int iso_txc_install(char *klass) {
+int iso_txc_install(char *klass, struct iso_tx_context *context) {
 	int ret;
 #if defined ISO_TX_CLASS_DEV
-	ret = iso_txc_dev_install(klass);
+	ret = iso_txc_dev_install(klass, context);
 #elif defined ISO_TX_CLASS_ETHER_SRC
-	ret = iso_txc_ether_src_install(klass);
+	ret = iso_txc_ether_src_install(klass, context);
 #elif defined (ISO_TX_CLASS_MARK) || defined (ISO_TX_CLASS_IPADDR)
-	ret = iso_txc_mark_install(klass);
+	ret = iso_txc_mark_install(klass, context);
 #endif
 	return ret;
 }
