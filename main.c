@@ -5,6 +5,11 @@
 #include "tx.h"
 #include "stats.h"
 
+#ifdef QDISC
+int eyeq_qdisc_register(void);
+void eyeq_qdisc_unregister(void);
+#endif
+
 MODULE_AUTHOR("Vimal <j.vimal@gmail.com>");
 MODULE_DESCRIPTION("Perf Isolation");
 MODULE_VERSION("1");
@@ -28,8 +33,10 @@ void iso_rx_hook_exit(void);
 void iso_tx_hook_exit(void);
 
 int iso_exiting;
+#ifndef QDISC
 /* Current device's GSO size */
 static int __prev__ISO_GSO_MAX_SIZE;
+#endif
 
 static int iso_init() {
 	int i, ret = -1;
@@ -54,11 +61,16 @@ static int iso_init() {
 	INIT_LIST_HEAD(&rxctx_list);
 	INIT_LIST_HEAD(&txctx_list);
 
-#ifdef QDISC
-	if (register_qdisc(&mq_qdisc_ops))
+	if(iso_params_init())
 		goto out;
-#endif
 
+	if(iso_stats_init())
+		goto out;
+
+#ifdef QDISC
+	if (eyeq_qdisc_register())
+		goto out;
+#else
 	rcu_read_lock();
 	iso_netdev = dev_get_by_name(&init_net, iso_param_dev);
 	rcu_read_unlock();
@@ -69,25 +81,13 @@ static int iso_init() {
 	}
 
 	printk(KERN_INFO "perfiso: operating on %s (%p)\n",
-		   iso_param_dev, iso_netdev);
+	       iso_param_dev, iso_netdev);
 
-	if(iso_params_init())
-		goto out;
-
-/*
-	if(iso_rx_init())
-		goto out;
-
-	if(iso_tx_init())
-		goto out;
-*/
-
-	if(iso_stats_init())
-		goto out;
-
-	ret = 0;
 	__prev__ISO_GSO_MAX_SIZE = iso_netdev->gso_max_size;
 	netif_set_gso_max_size(iso_netdev, ISO_GSO_MAX_SIZE);
+#endif
+
+	ret = 0;
  out:
 	return ret;
 }
@@ -104,10 +104,11 @@ static void iso_exit() {
 */
 	iso_stats_exit();
 	iso_params_exit();
+#ifdef QDISC
+	eyeq_qdisc_unregister();
+#else
 	netif_set_gso_max_size(iso_netdev, __prev__ISO_GSO_MAX_SIZE);
 	dev_put(iso_netdev);
-#ifdef QDISC
-	unregister_qdisc(&mq_qdisc_ops);
 #endif
 	printk(KERN_INFO "perfiso: goodbye.\n");
 }

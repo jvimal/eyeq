@@ -53,7 +53,7 @@ struct iso_tx_class {
 
 	/* Allocate from process context */
 	struct work_struct allocator;
-	struct iso_tx_context *context;
+	struct iso_tx_context *txctx;
 };
 
 /*
@@ -63,6 +63,7 @@ struct iso_tx_class {
 struct iso_tx_context {
 	struct net_device *netdev;
 	struct iso_rl_cb __percpu *rlcb;
+	int __prev_ISO_GSO_MAX_SIZE;
 	netdev_tx_t (*xmit)(struct sk_buff *, struct net_device *);
 	/* Store a list of all tx contexts (devices) in the system */
 	struct list_head list;

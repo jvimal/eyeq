@@ -45,6 +45,8 @@ int iso_tx_init(struct iso_tx_context *context) {
 
 	context->txc_total_weight = 0;
 	list_add_tail(&context->list, &txctx_list);
+	context->__prev_ISO_GSO_MAX_SIZE = context->netdev->gso_max_size;
+	netif_set_gso_max_size(context->netdev, ISO_GSO_MAX_SIZE);
 	return iso_tx_hook_init(context);
 }
 
@@ -55,6 +57,7 @@ void iso_tx_exit(struct iso_tx_context *context) {
 	struct iso_tx_class *txc;
 
 	iso_rl_exit(context->rlcb);
+	list_del_init(&context->list);
 
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &context->iso_tx_bucket[i];
@@ -64,7 +67,7 @@ void iso_tx_exit(struct iso_tx_context *context) {
 		}
 	}
 
-	list_del_init(&context->list);
+	netif_set_gso_max_size(context->netdev, context->__prev_ISO_GSO_MAX_SIZE);
 	free_percpu(context->rlcb);
 }
 
@@ -353,7 +356,7 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	spin_lock_init(&txc->writelock);
 	txc->freelist_count = 0;
 
-	iso_rl_init(&txc->rl, txc->context->rlcb);
+	iso_rl_init(&txc->rl, txc->txctx->rlcb);
 	txc->weight = 1;
 	txc->active = 0;
 	txc->vrate = 100;
@@ -378,8 +381,8 @@ struct iso_tx_class *iso_txc_alloc(iso_class_t klass, struct iso_tx_context *con
 	if(!txc)
 		return NULL;
 
+	txc->txctx = context;
 	iso_txc_init(txc);
-	txc->context = context;
 	txc->klass = klass;
 
 	/* Preallocate some perdest state and rate limiters.  32 entries
@@ -431,7 +434,7 @@ void iso_txc_prealloc(struct iso_tx_class *txc, int num) {
 		}
 
 		iso_state_init(state);
-		iso_rl_init(rl, txc->context->rlcb);
+		iso_rl_init(rl, txc->txctx->rlcb);
 		rl->txc = txc;
 
 		spin_lock_irqsave(&txc->writelock, flags);

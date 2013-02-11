@@ -39,6 +39,7 @@ struct iso_vq *iso_vq_alloc(iso_class_t klass, struct iso_rx_context *rxctx) {
 	struct hlist_head *head;
 
 	if(vq) {
+		vq->rxctx = rxctx;
 		iso_vq_init(vq);
 		rcu_read_lock();
 		vq->klass = klass;
@@ -48,7 +49,6 @@ struct iso_vq *iso_vq_alloc(iso_class_t klass, struct iso_rx_context *rxctx) {
 		list_add_tail_rcu(&vq->list, &rxctx->vq_list);
 		hlist_add_head_rcu(&vq->hash_node, head);
 		iso_vq_calculate_rates(rxctx);
-		vq->rxctx = rxctx;
 		rcu_read_unlock();
 	}
 	return vq;

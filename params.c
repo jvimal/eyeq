@@ -141,7 +141,7 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	char devname[128];
 	int len, ret;
 	struct iso_tx_context *txctx;
-	struct net_device *dev;
+	struct net_device *dev = NULL;
 
 	len = min(127, (int)strlen(val));
 	strncpy(buff, val, len);
@@ -151,6 +151,7 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 		return -EINVAL;
 
 	sscanf(buff, "%s %s", devname, klass);
+
 	rcu_read_lock();
 	dev = dev_get_by_name_rcu(&init_net, devname);
 	if (dev && iso_enabled(dev)) {
@@ -159,14 +160,17 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 	} else {
 		ret = -EINVAL;
 	}
+	if (dev)
+		dev_put(dev);
 	rcu_read_unlock();
+
 	up(&config_mutex);
 
 	if(ret)
 		return -EINVAL;
 
 	printk(KERN_INFO "perfiso: created tx context for class %s, dev %s\n",
-	       buff, devname);
+	       klass, devname);
 	return 0;
 }
 
@@ -189,7 +193,7 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	char devname[128];
 	char klass[128];
 	struct iso_rx_context *rxctx;
-	struct net_device *dev;
+	struct net_device *dev = NULL;
 	int len, ret;
 
 	len = min(127, (int)strlen(val));
@@ -208,13 +212,15 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 	} else {
 		ret = -EINVAL;
 	}
+	if (dev)
+		dev_put(dev);
 	rcu_read_unlock();
 	up(&config_mutex);
 
 	if(ret)
 		return -EINVAL;
 
-	printk(KERN_INFO "perfiso: created vq for class %s, dev %s\n", buff, devname);
+	printk(KERN_INFO "perfiso: created vq for class %s, dev %s\n", klass, devname);
 	return 0;
 }
 
@@ -230,7 +236,7 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 	iso_class_t txclass, vqclass;
 	struct iso_tx_class *txc;
 	struct iso_vq *vq;
-	struct net_device *dev;
+	struct net_device *dev = NULL;
 	struct iso_rx_context *rxctx;
 	struct iso_tx_context *txctx;
 	int n, ret = 0;
@@ -276,6 +282,9 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 	printk(KERN_INFO "perfiso: Associated txc %s with vq %s\n",
 		   _txc, _vqc);
  out:
+	if (dev)
+		dev_put(dev);
+
 	rcu_read_unlock();
 	return ret;
 }
@@ -293,7 +302,7 @@ static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
 	struct iso_tx_class *txc;
 	unsigned long flags;
 	int n, ret = 0, weight;
-	struct net_device *dev;
+	struct net_device *dev = NULL;
 	struct iso_tx_context *txctx;
 
 	rcu_read_lock();
@@ -333,6 +342,9 @@ static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
 	printk(KERN_INFO "perfiso: Set weight %d for txc %s on dev %s\n",
 	       weight, _txc, _devname);
  out:
+	if (dev)
+		dev_put(dev);
+
 	rcu_read_unlock();
 	return ret;
 }
@@ -353,7 +365,7 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
 	unsigned long flags;
 	int n, ret = 0, weight;
 	struct iso_rx_context *rxctx;
-	struct net_device *dev;
+	struct net_device *dev = NULL;
 
 	rcu_read_lock();
 	n = sscanf(val, "dev %s %s weight %d", _devname, _vqc, &weight);
@@ -391,6 +403,9 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
 	printk(KERN_INFO "perfiso: Set weight %d for vq %s on dev %s\n",
 	       weight, _vqc, _devname);
  out:
+	if (dev)
+		dev_put(dev);
+
 	rcu_read_unlock();
 	return ret;
 }

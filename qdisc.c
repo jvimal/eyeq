@@ -29,7 +29,9 @@ extern struct net_device *iso_netdev;
 #include <linux/skbuff.h>
 #include <net/netlink.h>
 #include <net/pkt_sched.h>
-//#include <linux/export.h>
+#ifndef THIS_MODULE
+#include <linux/export.h>
+#endif
 
 /*
  * Dummy per-dev queue qdisc
@@ -70,20 +72,23 @@ static void mq_destroy(struct Qdisc *sch)
 	struct mq_sched *priv = qdisc_priv(sch);
 	unsigned int ntx;
 
+	if (priv->txc)
+		iso_tx_exit(priv->txc);
+
+	if (priv->rxc)
+		iso_rx_exit(priv->rxc);
+
+	if (priv->txc)
+		kfree(priv->txc);
+
+	if (priv->rxc)
+		kfree(priv->rxc);
+
 	if (!priv->qdiscs)
 		return;
+
 	for (ntx = 0; ntx < dev->num_tx_queues && priv->qdiscs[ntx]; ntx++)
 		qdisc_destroy(priv->qdiscs[ntx]);
-
-	if (priv->txc) {
-		iso_tx_exit(priv->txc);
-		kfree(priv->txc);
-	}
-
-	if (priv->rxc) {
-		iso_rx_exit(priv->rxc);
-		kfree(priv->rxc);
-	}
 
 	kfree(priv->qdiscs);
 }
@@ -95,14 +100,17 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 	struct netdev_queue *dev_queue;
 	struct Qdisc *qdisc;
 	unsigned int ntx;
+	struct iso_tx_context *txctx;
+	struct iso_rx_context *rxctx;
 
 	if (sch->parent != TC_H_ROOT)
 		return -EOPNOTSUPP;
 
 	/* TODO: support even if not multiqueue.  I think we can just
 	 * disable this check. */
-	if (!netif_is_multiqueue(dev))
+	if (!netif_is_multiqueue(dev)) {
 		return -EOPNOTSUPP;
+	}
 
 	priv->txc = priv->rxc = NULL;
 
@@ -119,6 +127,11 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 	priv->rxc = kzalloc(sizeof(struct iso_rx_context), GFP_KERNEL);
 	if (priv->rxc == NULL)
 		goto err;
+
+	txctx = priv->txc;
+	txctx->netdev = dev;
+	rxctx = priv->rxc;
+	rxctx->netdev = dev;
 
 	if (iso_tx_init(priv->txc))
 		goto err;
@@ -139,6 +152,7 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 
 	sch->flags |= TCQ_F_MQROOT;
 	sch->flags |= TCQ_F_EYEQ;
+
 	return 0;
 
 err:
@@ -302,7 +316,7 @@ static const struct Qdisc_class_ops mq_class_ops = {
 	.dump_stats	= mq_dump_class_stats,
 };
 
-struct Qdisc_ops mq_qdisc_ops __read_mostly = {
+struct Qdisc_ops eyeq_qdisc_ops __read_mostly = {
 	.cl_ops		= &mq_class_ops,
 	.id		= "htb",
 	.priv_size	= sizeof(struct mq_sched),
@@ -375,9 +389,15 @@ void iso_tx_hook_exit(struct iso_tx_context *txctx) {
 int iso_rx_hook_init(struct iso_rx_context *rxctx) {
 	int ret = 0;
 
+#ifndef QDISC
 	rtnl_lock();
+#endif
+
 	ret = netdev_rx_handler_register(rxctx->netdev, iso_rx_handler, NULL);
+
+#ifndef QDISC
 	rtnl_unlock();
+#endif
 
 	/* Wait till stack sees our new handler */
 	synchronize_net();
@@ -385,19 +405,27 @@ int iso_rx_hook_init(struct iso_rx_context *rxctx) {
 }
 
 void iso_rx_hook_exit(struct iso_rx_context *rxctx) {
+#ifndef QDISC
 	rtnl_lock();
+#endif
+
 	netdev_rx_handler_unregister(rxctx->netdev);
+
+#ifndef QDISC
 	rtnl_unlock();
+#endif
 	synchronize_net();
 }
 
 static int iso_enqueue(struct sk_buff *skb, struct Qdisc *sch) {
 	enum iso_verdict verdict;
 	struct net_device *out = qdisc_dev(sch);
+	struct Qdisc *root = qdisc_root(sch);
+	struct mq_sched *priv = qdisc_priv(root);
 	int ret = NET_XMIT_SUCCESS;
 
 	skb_reset_mac_header(skb);
-	verdict = iso_tx(skb, out, iso_txctx_dev(out));
+	verdict = iso_tx(skb, out, priv->txc);
 
 	switch(verdict) {
 	case ISO_VERDICT_DROP:
@@ -431,7 +459,7 @@ rx_handler_result_t iso_rx_handler(struct sk_buff **pskb) {
 		return RX_HANDLER_PASS;
 
 	rxctx = iso_rxctx_dev(in);
-	verdict = iso_rx(skb, iso_netdev, rxctx);
+	verdict = iso_rx(skb, in, rxctx);
 
 	switch(verdict) {
 	case ISO_VERDICT_DROP:
@@ -448,6 +476,13 @@ rx_handler_result_t iso_rx_handler(struct sk_buff **pskb) {
 	return RX_HANDLER_PASS;
 }
 
+int eyeq_qdisc_register(void) {
+	return register_qdisc(&eyeq_qdisc_ops);
+}
+
+void eyeq_qdisc_unregister(void) {
+	unregister_qdisc(&eyeq_qdisc_ops);
+}
 /* Local Variables: */
 /* indent-tabs-mode:t */
 /* End: */
