@@ -38,25 +38,20 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt);
 static inline int iso_is_generated_feedback(struct sk_buff *);
 
 
-// extern char *iso_param_dev;
-//extern struct net_device *iso_netdev;
-
 /* Create a feebdack packet and prepare for transmission.  Returns 1 if successful. */
 static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 	struct sk_buff *skb;
 	struct ethhdr *eth_to, *eth_from;
 	struct iphdr *iph_to, *iph_from;
-	struct net_device *iso_netdev;
 
 	eth_from = eth_hdr(pkt);
 	if(unlikely(eth_from->h_proto != __constant_htons(ETH_P_IP)))
 		return 0;
 
-	iso_netdev = pkt->dev;
 	/* XXX: netdev_alloc_skb's meant to allocate packets for receiving.
 	 * Is it okay to use for transmitting?
 	 */
-	skb = netdev_alloc_skb(iso_netdev, ISO_FEEDBACK_PACKET_SIZE);
+	skb = netdev_alloc_skb(pkt->dev, ISO_FEEDBACK_PACKET_SIZE);
 	if(likely(skb)) {
 		skb_set_queue_mapping(skb, 0);
 		skb->len = ISO_FEEDBACK_PACKET_SIZE;
