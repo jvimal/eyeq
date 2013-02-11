@@ -99,6 +99,7 @@ static int iso_init() {
 	ret = 0;
 	goto out;
 
+#ifndef QDISC
 	/* Free up resources */
 	iso_tx_exit(&global_txcontext);
 out_5:
@@ -106,7 +107,7 @@ out_5:
 out_4:
 	dev_put(iso_netdev);
 out_3:
-#ifdef QDISC
+#else
 	eyeq_qdisc_unregister();
 out_2:
 #endif
