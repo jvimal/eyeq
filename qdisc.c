@@ -140,7 +140,7 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 						    TC_H_MIN(ntx + 1)));
 		if (qdisc == NULL)
 			goto err;
-		qdisc->flags |= TCQ_F_CAN_BYPASS;
+		// qdisc->flags |= TCQ_F_CAN_BYPASS;
 		priv->qdiscs[ntx] = qdisc;
 	}
 
@@ -321,7 +321,6 @@ struct Qdisc_ops eyeq_qdisc_ops __read_mostly = {
 	.owner		= THIS_MODULE,
 };
 
-static netdev_tx_t (*old_ndo_start_xmit)(struct sk_buff *, struct net_device *);
 netdev_tx_t iso_ndo_start_xmit(struct sk_buff *, struct net_device *);
 rx_handler_result_t iso_rx_handler(struct sk_buff **);
 
@@ -339,25 +338,27 @@ inline void skb_xmit(struct sk_buff *skb) {
 	struct netdev_queue *txq;
 	int cpu;
 	int locked = 0;
+	struct net_device *out = skb->dev;
+	struct iso_tx_context *txctx = iso_txctx_dev(out);
 
-	if(likely(old_ndo_start_xmit != NULL)) {
+	if(likely(txctx->xmit != NULL)) {
 		cpu = smp_processor_id();
-		txq = netdev_get_tx_queue(iso_netdev, skb_get_queue_mapping(skb));
+		txq = netdev_get_tx_queue(out, skb_get_queue_mapping(skb));
 
 		if(txq->xmit_lock_owner != cpu) {
-			HARD_TX_LOCK(iso_netdev, txq, cpu);
+			HARD_TX_LOCK(out, txq, cpu);
 			locked = 1;
 		}
 		/* XXX: will the else condition happen? */
 
 		if(!netif_tx_queue_stopped(txq)) {
-			old_ndo_start_xmit(skb, iso_netdev);
+			txctx->xmit(skb, out);
 		} else {
 			kfree_skb(skb);
 		}
 
 		if(locked) {
-			HARD_TX_UNLOCK(iso_netdev, txq);
+			HARD_TX_UNLOCK(out, txq);
 		}
 	}
 }
@@ -414,7 +415,7 @@ void iso_rx_hook_exit(struct iso_rx_context *rxctx) {
 static int iso_enqueue(struct sk_buff *skb, struct Qdisc *sch) {
 	enum iso_verdict verdict;
 	struct net_device *out = qdisc_dev(sch);
-	struct Qdisc *root = qdisc_root(sch);
+	struct Qdisc *root = out->qdisc;
 	struct mq_sched *priv = qdisc_priv(root);
 	int ret = NET_XMIT_SUCCESS;
 
