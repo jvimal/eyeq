@@ -106,12 +106,6 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 	if (sch->parent != TC_H_ROOT)
 		return -EOPNOTSUPP;
 
-	/* TODO: support even if not multiqueue.  I think we can just
-	 * disable this check. */
-	if (!netif_is_multiqueue(dev)) {
-		return -EOPNOTSUPP;
-	}
-
 	priv->txc = priv->rxc = NULL;
 
 	/* pre-allocate qdiscs, attachment can't fail */

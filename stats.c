@@ -79,7 +79,6 @@ static int iso_csvstats_proc_seq_show(struct seq_file *s, void *v) {
 	u64 rx_bytes;
 	char buff[128];
 
-	/* TODO: iterate over list of tx contexts */
 	for_each_tx_context(txctx) {
 		for_each_txc(txc, txctx) {
 			rl = &txc->rl;
@@ -88,7 +87,6 @@ static int iso_csvstats_proc_seq_show(struct seq_file *s, void *v) {
 		}
 	}
 
-	/* TODO: xxx */
 	for_each_rx_context(rxctx) {
 	for_each_vq(vq, rxctx) {
 		rx_bytes = 0;
