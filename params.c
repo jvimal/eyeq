@@ -3,6 +3,8 @@
 #include <linux/moduleparam.h>
 #include <linux/stat.h>
 #include <linux/semaphore.h>
+#include <linux/netdevice.h>
+#include <linux/if.h>
 
 #include "params.h"
 #include "tx.h"
@@ -95,6 +97,24 @@ struct ctl_path iso_params_path[] = {
 };
 struct ctl_table_header *iso_sysctl;
 
+#ifdef QDISC
+struct net_device *iso_search_netdev(char *name) {
+	struct net *net;
+	struct net_device *dev;
+	for_each_net(net) {
+		for_each_netdev(net, dev) {
+			if (strncmp(name, dev->name, IFNAMSIZ) == 0)
+				return dev;
+		}
+	}
+	return NULL;
+}
+#else
+struct net_device *iso_search_netdev(char *name) {
+	return iso_param_dev;
+}
+#endif
+
 int iso_params_init() {
 	int i;
 
@@ -152,17 +172,13 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 
 	sscanf(buff, "dev %s %s", devname, klass);
 
-	rcu_read_lock();
-	dev = dev_get_by_name_rcu(&init_net, devname);
+	dev = iso_search_netdev(devname);
 	if (dev && iso_enabled(dev)) {
 		txctx = iso_txctx_dev(dev);
 		ret = iso_txc_install(klass, txctx);
 	} else {
 		ret = -EINVAL;
 	}
-	if (dev)
-		dev_put(dev);
-	rcu_read_unlock();
 
 	up(&config_mutex);
 
@@ -205,15 +221,13 @@ static int iso_sys_create_vq(const char *val, struct kernel_param *kp) {
 
 	sscanf(buff, "dev %s %s", devname, klass);
 	rcu_read_lock();
-	dev = dev_get_by_name_rcu(&init_net, devname);
+	dev = iso_search_netdev(devname);
 	if (dev && iso_enabled(dev)) {
 		rxctx = iso_rxctx_dev(dev);
 		ret = iso_vq_install(klass, rxctx);
 	} else {
 		ret = -EINVAL;
 	}
-	if (dev)
-		dev_put(dev);
 	rcu_read_unlock();
 	up(&config_mutex);
 
@@ -249,7 +263,7 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 		goto out;
 	}
 
-	dev = dev_get_by_name_rcu(&init_net, _devname);
+	dev = iso_search_netdev(_devname);
 	if ((dev == NULL) || !iso_enabled(dev))
 		goto out;
 
@@ -282,8 +296,6 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 	printk(KERN_INFO "perfiso: Associated txc %s with vq %s on %s\n",
 	       _txc, _vqc, _devname);
  out:
-	if (dev)
-		dev_put(dev);
 
 	rcu_read_unlock();
 	return ret;
@@ -312,7 +324,7 @@ static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
 		goto out;
 	}
 
-	dev = dev_get_by_name_rcu(&init_net, _devname);
+	dev = iso_search_netdev(_devname);
 	if ((dev == NULL) || !iso_enabled(dev)) {
 		ret = -EINVAL;
 		goto out;
@@ -342,8 +354,6 @@ static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
 	printk(KERN_INFO "perfiso: Set weight %d for txc %s on dev %s\n",
 	       weight, _txc, _devname);
  out:
-	if (dev)
-		dev_put(dev);
 
 	rcu_read_unlock();
 	return ret;
@@ -374,7 +384,7 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
 		goto out;
 	}
 
-	dev = dev_get_by_name_rcu(&init_net, _devname);
+	dev = iso_search_netdev(_devname);
 	if ((dev == NULL) || !iso_enabled(dev)) {
 		ret = -EINVAL;
 		goto out;
@@ -403,8 +413,6 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
 	printk(KERN_INFO "perfiso: Set weight %d for vq %s on dev %s\n",
 	       weight, _vqc, _devname);
  out:
-	if (dev)
-		dev_put(dev);
 
 	rcu_read_unlock();
 	return ret;
