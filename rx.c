@@ -4,19 +4,39 @@
 #include "rx.h"
 #include "vq.h"
 
-int iso_rx_hook_init(void);
+int iso_rx_hook_init(struct iso_rx_context *);
+void iso_rx_hook_exit(struct iso_rx_context *);
 
-int iso_rx_init() {
-	printk(KERN_INFO "perfiso: Init RX path\n");
-	iso_vqs_init();
-	return iso_rx_hook_init();
+struct list_head rxctx_list;
+
+#ifdef QDISC
+struct iso_rx_context *iso_rxctx_dev(const struct net_device *dev) {
+	struct Qdisc *qdisc = dev->qdisc;
+	struct mq_sched *mq = qdisc_priv(qdisc);
+	return mq->rxc;
+}
+#else
+struct iso_rx_context global_rxcontext;
+struct iso_rx_context *iso_rxctx_dev(const struct net_device *dev) {
+	return &global_rxcontext;
+}
+#endif
+
+int iso_rx_init(struct iso_rx_context *context) {
+	printk(KERN_INFO "perfiso: Init RX path for %s\n", context->netdev->name);
+	iso_vqs_init(context);
+	list_add_tail(&context->list, &rxctx_list);
+	return iso_rx_hook_init(context);
 }
 
-void iso_rx_exit() {
-	iso_vqs_exit();
+void iso_rx_exit(struct iso_rx_context *context) {
+	printk(KERN_INFO "perfiso: Exit RX path for %s\n", context->netdev->name);
+	list_del_init(&context->list);
+	iso_vqs_exit(context);
+	iso_rx_hook_exit(context);
 }
 
-enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
+enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in, struct iso_rx_context *rxctx)
 {
 	struct iso_tx_class *txc;
 	iso_class_t klass;
@@ -24,18 +44,19 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	struct iso_vq *vq;
 	struct iso_vq_stats *stats;
 	enum iso_verdict verdict = ISO_VERDICT_SUCCESS;
+	struct iso_tx_context *txctx;
 
 	rcu_read_lock();
-
+	txctx = iso_txctx_dev(in);
 	/* Pick VQ */
 	klass = iso_rx_classify(skb);
-	vq = iso_vq_find(klass);
+	vq = iso_vq_find(klass, rxctx);
 	if(vq == NULL)
 		goto accept;
 
 	iso_vq_enqueue(vq, skb);
 
-	txc = iso_txc_find(klass);
+	txc = iso_txc_find(klass, txctx);
 	if(txc == NULL)
 		goto accept;
 
@@ -85,21 +106,21 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in)
 	return verdict;
 }
 
-int iso_vq_install(char *_klass) {
+int iso_vq_install(char *_klass, struct iso_rx_context *rxctx) {
 	iso_class_t klass;
 	struct iso_vq *vq;
 	int ret = 0;
 
 	rcu_read_lock();
 	klass = iso_class_parse(_klass);
-	vq = iso_vq_find(klass);
+	vq = iso_vq_find(klass, rxctx);
 	if(vq != NULL) {
 		ret = -1;
 		printk(KERN_INFO "perfiso: class %s exists\n", _klass);
 		goto err;
 	}
 
-	vq = iso_vq_alloc(klass);
+	vq = iso_vq_alloc(klass, rxctx);
 	if(vq == NULL) {
 		printk(KERN_INFO "perfiso: could not allocate vq\n");
 		ret = -1;

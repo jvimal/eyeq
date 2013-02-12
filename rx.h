@@ -3,21 +3,40 @@
 
 #include "tx.h"
 
-int iso_rx_init(void);
-void iso_rx_exit(void);
+struct iso_rx_context {
+	s64 vq_total_tokens;
+	ktime_t vq_last_update_time;
+	ktime_t vq_last_check_time;
+	spinlock_t vq_spinlock;
+	struct list_head vq_list;
+	struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];
+	atomic_t vq_active_rate;
 
-enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *out);
+	struct list_head list;
+	struct net_device *netdev;
+};
+
+struct iso_rx_context *iso_rxctx_dev(const struct net_device *dev);
+
+#ifndef QDISC
+extern struct iso_rx_context global_rxcontext;
+#endif
+
+extern struct list_head rxctx_list;
+#define for_each_rx_context(rxctx) list_for_each_entry_safe(rxctx, rxctx_next, &rxctx_list, list)
+
+int iso_rx_init(struct iso_rx_context *);
+void iso_rx_exit(struct iso_rx_context *);
+
+enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *out, struct iso_rx_context *rxctx);
 
 static inline iso_class_t iso_rx_classify(struct sk_buff *);
 
-int iso_vq_install(char *);
+int iso_vq_install(char *, struct iso_rx_context *);
 
 static inline int iso_generate_feedback(int bit, struct sk_buff *pkt);
 static inline int iso_is_generated_feedback(struct sk_buff *);
 
-
-extern char *iso_param_dev;
-extern struct net_device *iso_netdev;
 
 /* Create a feebdack packet and prepare for transmission.  Returns 1 if successful. */
 static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
@@ -32,7 +51,7 @@ static inline int iso_generate_feedback(int bit, struct sk_buff *pkt) {
 	/* XXX: netdev_alloc_skb's meant to allocate packets for receiving.
 	 * Is it okay to use for transmitting?
 	 */
-	skb = netdev_alloc_skb(iso_netdev, ISO_FEEDBACK_PACKET_SIZE);
+	skb = netdev_alloc_skb(pkt->dev, ISO_FEEDBACK_PACKET_SIZE);
 	if(likely(skb)) {
 		skb_set_queue_mapping(skb, 0);
 		skb->len = ISO_FEEDBACK_PACKET_SIZE;

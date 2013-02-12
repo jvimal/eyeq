@@ -6,9 +6,10 @@
 #ifndef QDISC
 #error "Compiling qdisc.c without -DQDISC"
 #endif
-
+#include "qdisc.h"
+#include "tx.h"
+#include "rx.h"
 extern struct net_device *iso_netdev;
-
 
 /*
  * net/sched/sch_mq.c		Classful multiqueue dummy scheduler
@@ -28,11 +29,16 @@ extern struct net_device *iso_netdev;
 #include <linux/skbuff.h>
 #include <net/netlink.h>
 #include <net/pkt_sched.h>
+#ifndef THIS_MODULE
 #include <linux/export.h>
+#endif
 
 /*
  * Dummy per-dev queue qdisc
  */
+
+extern struct list_head rxctx_list;
+extern struct list_head txctx_list;
 
 static int eyeq_local_init(struct Qdisc *a, struct nlattr *opt)
 {
@@ -60,21 +66,30 @@ static struct Qdisc_ops iso_local_ops __read_mostly = {
 	.dequeue = iso_dequeue,
 };
 
-/* Wrapper around per-dev qdisc */
-struct mq_sched {
-	struct Qdisc		**qdiscs;
-};
-
 static void mq_destroy(struct Qdisc *sch)
 {
 	struct net_device *dev = qdisc_dev(sch);
 	struct mq_sched *priv = qdisc_priv(sch);
 	unsigned int ntx;
 
+	if (priv->txc)
+		iso_tx_exit(priv->txc);
+
+	if (priv->rxc)
+		iso_rx_exit(priv->rxc);
+
+	if (priv->txc)
+		kfree(priv->txc);
+
+	if (priv->rxc)
+		kfree(priv->rxc);
+
 	if (!priv->qdiscs)
 		return;
+
 	for (ntx = 0; ntx < dev->num_tx_queues && priv->qdiscs[ntx]; ntx++)
 		qdisc_destroy(priv->qdiscs[ntx]);
+
 	kfree(priv->qdiscs);
 }
 
@@ -85,18 +100,38 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 	struct netdev_queue *dev_queue;
 	struct Qdisc *qdisc;
 	unsigned int ntx;
+	struct iso_tx_context *txctx;
+	struct iso_rx_context *rxctx;
 
 	if (sch->parent != TC_H_ROOT)
 		return -EOPNOTSUPP;
 
-	if (!netif_is_multiqueue(dev))
-		return -EOPNOTSUPP;
+	priv->txc = priv->rxc = NULL;
 
 	/* pre-allocate qdiscs, attachment can't fail */
 	priv->qdiscs = kcalloc(dev->num_tx_queues, sizeof(priv->qdiscs[0]),
 			       GFP_KERNEL);
 	if (priv->qdiscs == NULL)
 		return -ENOMEM;
+
+	priv->txc = kzalloc(sizeof(struct iso_tx_context), GFP_KERNEL);
+	if (priv->txc == NULL)
+		goto err;
+
+	priv->rxc = kzalloc(sizeof(struct iso_rx_context), GFP_KERNEL);
+	if (priv->rxc == NULL)
+		goto err;
+
+	txctx = priv->txc;
+	txctx->netdev = dev;
+	rxctx = priv->rxc;
+	rxctx->netdev = dev;
+
+	if (iso_tx_init(priv->txc))
+		goto err;
+
+	if (iso_rx_init(priv->rxc))
+		goto err;
 
 	for (ntx = 0; ntx < dev->num_tx_queues; ntx++) {
 		dev_queue = netdev_get_tx_queue(dev, ntx);
@@ -105,11 +140,13 @@ static int mq_init(struct Qdisc *sch, struct nlattr *opt)
 						    TC_H_MIN(ntx + 1)));
 		if (qdisc == NULL)
 			goto err;
-		qdisc->flags |= TCQ_F_CAN_BYPASS;
+		// qdisc->flags |= TCQ_F_CAN_BYPASS;
 		priv->qdiscs[ntx] = qdisc;
 	}
 
 	sch->flags |= TCQ_F_MQROOT;
+	sch->flags |= TCQ_F_EYEQ;
+
 	return 0;
 
 err:
@@ -273,7 +310,7 @@ static const struct Qdisc_class_ops mq_class_ops = {
 	.dump_stats	= mq_dump_class_stats,
 };
 
-struct Qdisc_ops mq_qdisc_ops __read_mostly = {
+struct Qdisc_ops eyeq_qdisc_ops __read_mostly = {
 	.cl_ops		= &mq_class_ops,
 	.id		= "htb",
 	.priv_size	= sizeof(struct mq_sched),
@@ -284,108 +321,106 @@ struct Qdisc_ops mq_qdisc_ops __read_mostly = {
 	.owner		= THIS_MODULE,
 };
 
-static netdev_tx_t (*old_ndo_start_xmit)(struct sk_buff *, struct net_device *);
 netdev_tx_t iso_ndo_start_xmit(struct sk_buff *, struct net_device *);
 rx_handler_result_t iso_rx_handler(struct sk_buff **);
 
-int iso_tx_hook_init(void);
-void iso_tx_hook_exit(void);
+int iso_tx_hook_init(struct iso_tx_context *);
+void iso_tx_hook_exit(struct iso_tx_context *);
 
-int iso_rx_hook_init(void);
-void iso_rx_hook_exit(void);
+int iso_rx_hook_init(struct iso_rx_context *);
+void iso_rx_hook_exit(struct iso_rx_context *);
 
-enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out);
-enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in);
+enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out, struct iso_tx_context *);
+enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in, struct iso_rx_context *);
 
 /* Called with bh disabled */
 inline void skb_xmit(struct sk_buff *skb) {
 	struct netdev_queue *txq;
 	int cpu;
 	int locked = 0;
+	struct net_device *out = skb->dev;
+	struct iso_tx_context *txctx = iso_txctx_dev(out);
 
-	if(likely(old_ndo_start_xmit != NULL)) {
+	if(likely(txctx->xmit != NULL)) {
 		cpu = smp_processor_id();
-		txq = netdev_get_tx_queue(iso_netdev, skb_get_queue_mapping(skb));
+		txq = netdev_get_tx_queue(out, skb_get_queue_mapping(skb));
 
 		if(txq->xmit_lock_owner != cpu) {
-			HARD_TX_LOCK(iso_netdev, txq, cpu);
+			HARD_TX_LOCK(out, txq, cpu);
 			locked = 1;
 		}
 		/* XXX: will the else condition happen? */
 
 		if(!netif_tx_queue_stopped(txq)) {
-			old_ndo_start_xmit(skb, iso_netdev);
+			txctx->xmit(skb, out);
 		} else {
 			kfree_skb(skb);
 		}
 
 		if(locked) {
-			HARD_TX_UNLOCK(iso_netdev, txq);
+			HARD_TX_UNLOCK(out, txq);
 		}
 	}
 }
 
-int iso_tx_hook_init() {
+int iso_tx_hook_init(struct iso_tx_context *context) {
 	struct net_device_ops *ops;
+	struct net_device *netdev = context->netdev;
 
-	if(iso_netdev == NULL || iso_netdev->netdev_ops == NULL)
+	if(netdev == NULL || netdev->netdev_ops == NULL)
 		return 1;
 
-	if (register_qdisc(&mq_qdisc_ops))
-		return 1;
-
-	ops = (struct net_device_ops *)iso_netdev->netdev_ops;
-
-	rtnl_lock();
-	old_ndo_start_xmit = ops->ndo_start_xmit;
-	// ops->ndo_start_xmit = iso_ndo_start_xmit;
-	rtnl_unlock();
-
+	ops = (struct net_device_ops *)netdev->netdev_ops;
+	context->xmit = ops->ndo_start_xmit;
 	synchronize_net();
 	return 0;
 }
 
-void iso_tx_hook_exit() {
-	struct net_device_ops *ops = (struct net_device_ops *)iso_netdev->netdev_ops;
-
-	rtnl_lock();
-	// ops->ndo_start_xmit = old_ndo_start_xmit;
-	rtnl_unlock();
-
+void iso_tx_hook_exit(struct iso_tx_context *txctx) {
+	kfree(txctx);
 	synchronize_net();
-
-	unregister_qdisc(&mq_qdisc_ops);
 }
 
-int iso_rx_hook_init() {
+int iso_rx_hook_init(struct iso_rx_context *rxctx) {
 	int ret = 0;
 
-	if(iso_netdev == NULL)
-		return 1;
-
+#ifndef QDISC
 	rtnl_lock();
-	ret = netdev_rx_handler_register(iso_netdev, iso_rx_handler, NULL);
+#endif
+
+	ret = netdev_rx_handler_register(rxctx->netdev, iso_rx_handler, NULL);
+
+#ifndef QDISC
 	rtnl_unlock();
+#endif
 
 	/* Wait till stack sees our new handler */
 	synchronize_net();
 	return ret;
 }
 
-void iso_rx_hook_exit() {
+void iso_rx_hook_exit(struct iso_rx_context *rxctx) {
+#ifndef QDISC
 	rtnl_lock();
-	netdev_rx_handler_unregister(iso_netdev);
+#endif
+
+	netdev_rx_handler_unregister(rxctx->netdev);
+
+#ifndef QDISC
 	rtnl_unlock();
+#endif
 	synchronize_net();
 }
 
 static int iso_enqueue(struct sk_buff *skb, struct Qdisc *sch) {
 	enum iso_verdict verdict;
 	struct net_device *out = qdisc_dev(sch);
+	struct Qdisc *root = out->qdisc;
+	struct mq_sched *priv = qdisc_priv(root);
 	int ret = NET_XMIT_SUCCESS;
 
 	skb_reset_mac_header(skb);
-	verdict = iso_tx(skb, out);
+	verdict = iso_tx(skb, out, priv->txc);
 
 	switch(verdict) {
 	case ISO_VERDICT_DROP:
@@ -409,11 +444,17 @@ static int iso_enqueue(struct sk_buff *skb, struct Qdisc *sch) {
 rx_handler_result_t iso_rx_handler(struct sk_buff **pskb) {
 	struct sk_buff *skb = *pskb;
 	enum iso_verdict verdict;
+	struct net_device *in = skb->dev;
+	struct iso_rx_context *rxctx;
 
 	if(unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
 
-	verdict = iso_rx(skb, iso_netdev);
+	if (unlikely(!iso_enabled(in)))
+		return RX_HANDLER_PASS;
+
+	rxctx = iso_rxctx_dev(in);
+	verdict = iso_rx(skb, in, rxctx);
 
 	switch(verdict) {
 	case ISO_VERDICT_DROP:
@@ -430,6 +471,13 @@ rx_handler_result_t iso_rx_handler(struct sk_buff **pskb) {
 	return RX_HANDLER_PASS;
 }
 
+int eyeq_qdisc_register(void) {
+	return register_qdisc(&eyeq_qdisc_ops);
+}
+
+void eyeq_qdisc_unregister(void) {
+	unregister_qdisc(&eyeq_qdisc_ops);
+}
 /* Local Variables: */
 /* indent-tabs-mode:t */
 /* End: */

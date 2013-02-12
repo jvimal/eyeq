@@ -2,20 +2,20 @@
 #include "rl.h"
 #include "tx.h"
 
-struct iso_rl_cb __percpu *rlcb;
+//struct iso_rl_cb __percpu *rlcb;
 extern int iso_exiting;
 
 /* Called the first time when the module is initialised */
-int iso_rl_prep() {
+int iso_rl_prep(struct iso_rl_cb __percpu **rlcb) {
 	int cpu;
 
-	rlcb = alloc_percpu(struct iso_rl_cb);
-	if(rlcb == NULL)
+	*rlcb = alloc_percpu(struct iso_rl_cb);
+	if(*rlcb == NULL)
 		return -1;
 
 	/* Init everything; but what about hotplug?  Hmm... */
 	for_each_possible_cpu(cpu) {
-		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, cpu);
+		struct iso_rl_cb *cb = per_cpu_ptr(*rlcb, cpu);
 		spin_lock_init(&cb->spinlock);
 
 		hrtimer_init(&cb->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED);
@@ -32,7 +32,7 @@ int iso_rl_prep() {
 	return 0;
 }
 
-void iso_rl_exit() {
+void iso_rl_exit(struct iso_rl_cb __percpu *rlcb) {
 	int cpu;
 
 	for_each_possible_cpu(cpu) {
@@ -82,7 +82,7 @@ void iso_rl_xmit_tasklet(unsigned long _cb) {
 	}
 }
 
-void iso_rl_init(struct iso_rl *rl) {
+void iso_rl_init(struct iso_rl *rl, struct iso_rl_cb __percpu *rlcb) {
 	int i;
 	rl->rate = ISO_RFAIR_INITIAL;
 	rl->total_tokens = 15000;
@@ -91,6 +91,7 @@ void iso_rl_init(struct iso_rl *rl) {
 	rl->queue = alloc_percpu(struct iso_rl_queue);
 	rl->accum_xmit = 0;
 	rl->accum_enqueued = 0;
+	rl->rlcb = rlcb;
 	spin_lock_init(&rl->spinlock);
 
 	for_each_possible_cpu(i) {
@@ -314,7 +315,7 @@ unlock:
 
 timeout:
 	if(timeout && !iso_exiting) {
-		struct iso_rl_cb *cb = per_cpu_ptr(rlcb, q->cpu);
+		struct iso_rl_cb *cb = per_cpu_ptr(rl->rlcb, q->cpu);
 
 		/* don't recursively add! */
 		if(list_empty(&q->active_list)) {

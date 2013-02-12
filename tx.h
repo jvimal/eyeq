@@ -8,6 +8,11 @@
 #include "rl.h"
 #include "rc.h"
 
+#ifdef QDISC
+#include <net/pkt_sched.h>
+#include "qdisc.h"
+#endif
+
 struct seq_file;
 
 #include "class.h"
@@ -48,6 +53,26 @@ struct iso_tx_class {
 
 	/* Allocate from process context */
 	struct work_struct allocator;
+	struct iso_tx_context *txctx;
+};
+
+/*
+ * Create one per device.  We do not support multiple interface
+ * fairness yet.
+ */
+struct iso_tx_context {
+	struct net_device *netdev;
+	struct iso_rl_cb __percpu *rlcb;
+	int __prev_ISO_GSO_MAX_SIZE;
+	netdev_tx_t (*xmit)(struct sk_buff *, struct net_device *);
+	/* Store a list of all tx contexts (devices) in the system */
+	struct list_head list;
+
+	struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
+	struct list_head txc_list;
+	ktime_t txc_last_update_time;
+	int txc_total_weight;
+	spinlock_t txc_spinlock;
 };
 
 enum iso_create_t {
@@ -55,20 +80,27 @@ enum iso_create_t {
 	ISO_CREATE_RL = 1,
 };
 
-extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
-extern struct list_head txc_list;
-extern int txc_total_weight;
-extern spinlock_t txc_spinlock;
+//extern struct hlist_head iso_tx_bucket[ISO_MAX_TX_BUCKETS];
+//extern struct list_head txc_list;
+extern struct list_head txctx_list;
+//extern int txc_total_weight;
+//extern spinlock_t txc_spinlock;
 
-#define for_each_txc(txc) list_for_each_entry_safe(txc, txc_next, &txc_list, list)
+struct iso_tx_context *iso_txctx_dev(const struct net_device *dev);
+#ifndef QDISC
+extern struct iso_tx_context global_txcontext;
+#endif
 
-int iso_tx_init(void);
-void iso_tx_exit(void);
+#define for_each_txc(txc, context) list_for_each_entry_safe(txc, txc_next, &context->txc_list, list)
+#define for_each_tx_context(txctx) list_for_each_entry_safe(txctx, txctx_next, &txctx_list, list)
 
-enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out);
+int iso_tx_init(struct iso_tx_context *);
+void iso_tx_exit(struct iso_tx_context *);
+
+enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out, struct iso_tx_context *);
 
 void iso_txc_init(struct iso_tx_class *);
-struct iso_tx_class *iso_txc_alloc(iso_class_t);
+struct iso_tx_class *iso_txc_alloc(iso_class_t, struct iso_tx_context *);
 void iso_txc_free(struct iso_tx_class *);
 void iso_txc_show(struct iso_tx_class *, struct seq_file *);
 
@@ -80,23 +112,23 @@ int iso_txc_ether_src_install(char *hwaddr);
 int iso_txc_mark_install(char *mark);
 #endif
 
-int iso_txc_install(char *klass);
+int iso_txc_install(char *klass, struct iso_tx_context *);
 void iso_txc_prealloc(struct iso_tx_class *, int);
 void iso_txc_allocator(struct work_struct *);
-inline void iso_txc_tick(void);
-static inline void iso_txc_recompute_rates(void);
+inline void iso_txc_tick(struct iso_tx_context *);
+static inline void iso_txc_recompute_rates(struct iso_tx_context *);
 
 void iso_state_init(struct iso_per_dest_state *);
 struct iso_per_dest_state *iso_state_get(struct iso_tx_class *, struct sk_buff *, int rx, enum iso_create_t);
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32);
 void iso_state_free(struct iso_per_dest_state *);
 
-static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass) {
-	return &iso_tx_bucket[iso_class_hash(klass) & (ISO_MAX_TX_BUCKETS - 1)];
+static inline struct hlist_head *iso_txc_find_bucket(iso_class_t klass, struct iso_tx_context *context) {
+	return &context->iso_tx_bucket[iso_class_hash(klass) & (ISO_MAX_TX_BUCKETS - 1)];
 }
 
-static inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
-	struct hlist_head *head = iso_txc_find_bucket(klass);
+static inline struct iso_tx_class *iso_txc_find(iso_class_t klass, struct iso_tx_context *context) {
+	struct hlist_head *head = iso_txc_find_bucket(klass, context);
 	struct iso_tx_class *txc;
 	struct iso_tx_class *found = NULL;
 	struct hlist_node *n;
@@ -113,15 +145,15 @@ static inline struct iso_tx_class *iso_txc_find(iso_class_t klass) {
 	return found;
 }
 
-static inline void iso_txc_recompute_rates() {
+static inline void iso_txc_recompute_rates(struct iso_tx_context *context) {
 	struct iso_tx_class *txc, *txc_next;
 	unsigned long flags;
 
-	spin_lock_irqsave(&txc_spinlock, flags);
-	for_each_txc(txc) {
-		txc->vrate = txc->rl.rate = txc->weight * ISO_MAX_TX_RATE / txc_total_weight;
+	spin_lock_irqsave(&context->txc_spinlock, flags);
+	for_each_txc(txc, context) {
+		txc->vrate = txc->rl.rate = txc->weight * ISO_MAX_TX_RATE / context->txc_total_weight;
 	}
-	spin_unlock_irqrestore(&txc_spinlock, flags);
+	spin_unlock_irqrestore(&context->txc_spinlock, flags);
 }
 
 #endif /* __TX_H__ */

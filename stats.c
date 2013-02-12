@@ -40,29 +40,36 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 	struct hlist_node *node;
 	struct iso_tx_class *txc;
 	struct iso_vq *vq, *vq_next;
-
+	struct iso_tx_context *txctx, *txctx_next;
+	struct iso_rx_context *rxctx, *rxctx_next;
 	int i;
 
-	seq_printf(s, "iso_param_dev %s\n", iso_param_dev);
+	for_each_tx_context(txctx) {
+		seq_printf(s, "tx->dev %s\n", txctx->netdev->name);
 
-	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
-		head = &iso_tx_bucket[i];
-		hlist_for_each_entry_rcu(txc, node, head, hash_node) {
-			iso_txc_show(txc, s);
+		for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
+			head = &txctx->iso_tx_bucket[i];
+			hlist_for_each_entry_rcu(txc, node, head, hash_node) {
+				iso_txc_show(txc, s);
+			}
 		}
 	}
 
-	seq_printf(s, "\nvqs   total_tokens %lld   last_update %llx   active_rate %d\n",
-			   vq_total_tokens, *(u64 *)&vq_last_update_time, atomic_read(&vq_active_rate));
+	for_each_rx_context(rxctx) {
+		seq_printf(s, "\nvqs   total_tokens %lld   last_update %llx   active_rate %d\n",
+			   rxctx->vq_total_tokens, rxctx->vq_last_update_time.tv64, atomic_read(&rxctx->vq_active_rate));
 
-	for_each_vq(vq) {
-		iso_vq_show(vq, s);
+		for_each_vq(vq, rxctx) {
+			iso_vq_show(vq, s);
+		}
 	}
 
 	return 0;
 }
 
 static int iso_csvstats_proc_seq_show(struct seq_file *s, void *v) {
+	struct iso_tx_context *txctx, *txctx_next;
+	struct iso_rx_context *rxctx, *rxctx_next;
 	struct iso_tx_class *txc, *txc_next;
 	struct iso_rl *rl;
 	struct iso_vq *vq, *vq_next;
@@ -72,13 +79,16 @@ static int iso_csvstats_proc_seq_show(struct seq_file *s, void *v) {
 	u64 rx_bytes;
 	char buff[128];
 
-	for_each_txc(txc) {
-		rl = &txc->rl;
-		iso_class_show(txc->klass, buff);
-		seq_printf(s, "tx,%s,%llu\n", buff, txc->rl.accum_xmit);
+	for_each_tx_context(txctx) {
+		for_each_txc(txc, txctx) {
+			rl = &txc->rl;
+			iso_class_show(txc->klass, buff);
+			seq_printf(s, "tx,%s,%llu\n", buff, txc->rl.accum_xmit);
+		}
 	}
 
-	for_each_vq(vq) {
+	for_each_rx_context(rxctx) {
+	for_each_vq(vq, rxctx) {
 		rx_bytes = 0;
 		iso_class_show(vq->klass, buff);
 		for_each_online_cpu(i) {
@@ -86,6 +96,7 @@ static int iso_csvstats_proc_seq_show(struct seq_file *s, void *v) {
 			rx_bytes += stats->rx_bytes;
 		}
 		seq_printf(s, "rx,%s,%llu\n", buff, rx_bytes);
+	}
 	}
 
 	return 0;

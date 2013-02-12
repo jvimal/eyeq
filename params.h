@@ -3,6 +3,13 @@
 
 
 #include <linux/types.h>
+#include <net/pkt_sched.h>
+
+#ifdef QDISC
+#include "qdisc.h"
+#else
+extern struct net_device *iso_netdev;
+#endif
 
 extern int ISO_FALPHA;
 
@@ -73,6 +80,7 @@ extern int iso_num_params;
 int iso_params_init(void);
 void iso_params_exit(void);
 
+int iso_enabled(struct net_device *dev);
 
 #endif /* __PARAMS_H__ */
 

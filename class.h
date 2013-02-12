@@ -12,6 +12,7 @@
 // #define ISO_TX_CLASS_ETHER_SRC
 // #define ISO_TX_CLASS_DEV
 // #define ISO_TX_CLASS_MARK
+struct iso_tx_context;
 
 #if defined ISO_TX_CLASS_DEV
 typedef struct net_device *iso_class_t;
@@ -32,7 +33,7 @@ static inline int iso_class_cmp(iso_class_t a, iso_class_t b);
 static inline u32 iso_class_hash(iso_class_t);
 static inline void iso_class_show(iso_class_t, char *);
 static inline iso_class_t iso_class_parse(char*);
-static inline struct iso_tx_class *iso_txc_find(iso_class_t);
+static inline struct iso_tx_class *iso_txc_find(iso_class_t, struct iso_tx_context *);
 
 
 /* First attempt: out device classification.  Its address is usually
