@@ -5,6 +5,7 @@ import re
 import sys
 import ConfigParser
 from subprocess import Popen
+from collections import defaultdict
 
 re_digits = re.compile(r'\d+')
 re_spaces = re.compile(r'\s+')
@@ -12,6 +13,9 @@ re_spaces = re.compile(r'\s+')
 ISO_SYSCTL_DIR = '/proc/sys/perfiso/'
 ISO_PROCFILE   = '/proc/perfiso_stats'
 ISO_SYSFS      = '/sys/module/perfiso/parameters'
+ISO_CREATED    = defaultdict(bool)
+ISO_INSMOD     = False
+ISO_PATH       = '/root/iso/perfiso.ko'
 
 def die(s):
     print s
@@ -19,6 +23,21 @@ def die(s):
 
 def read_file(f):
     return open(f).read().strip()
+
+def cmd(s):
+    return Popen(s, shell=True).wait()
+
+def install(dev):
+    if not ISO_INSMOD:
+        ISO_INSMOD = True
+        if not os.path.exists(ISO_PATH):
+            die("Cannot find %s" % ISO_PATH)
+        cmd("rmmod sch_htb; insmod %s; " % ISO_PATH)
+    if not ISO_CREATED[dev]:
+        return
+    cmd("tc qdisc add dev %s htb default 1" % dev)
+    # todo check ret value
+    ISO_CREATED[dev] = True
 
 class Parameters:
     def __init__(self):
@@ -71,22 +90,27 @@ class TxClass:
     def __init__(self):
         self.txcs = []
 
-    def create(self, klass):
-        return Popen("echo %s > %s/create_txc" % (klass, ISO_SYSFS), shell=True).wait()
+    def create(self, dev, klass):
+        if not ISO_CREATED[dev]:
+            install(dev)
+        return Popen("echo dev %s %s > %s/create_txc" % (dev, klass, ISO_SYSFS), shell=True).wait()
 
-    def associate(self, klass, vq):
-        return Popen("echo associate txc %s vq %s > %s/assoc_txc_vq" % (klass, vq, ISO_SYSFS),
+    def associate(self, dev, klass, vq):
+        return Popen("echo dev %s associate txc %s vq %s > %s/assoc_txc_vq" % (dev, klass, vq, ISO_SYSFS),
                      shell=True).wait()
 
     def get(self):
         lines = open(ISO_PROCFILE, 'r').readlines()
         ret = []
+        dev = ""
         for line in lines:
+            if line.startswith("tx->dev"):
+                dev = line.strip().split(' ')[1]
             if line.startswith("txc class"):
                 lst = re_spaces.split(line)
                 tx_class = lst[2]
                 vq_class = lst[5]
-                ret.append((tx_class, vq_class))
+                ret.append((dev, tx_class, vq_class))
         self.txcs = ret
         return ret
 
@@ -94,35 +118,41 @@ class TxClass:
         self.get()
         if not config.has_section("txc"):
             config.add_section("txc")
-        for txc,vqc in self.txcs:
-            config.set("txc", txc, "vq " + vqc)
+        for dev,txc,vqc in self.txcs:
+            value = "vq %s, dev %s" % (vqc, dev)
+            config.set("txc", txc, value)
 
     def load(self, config):
         if not config.has_section("txc"):
             return
-        for txc,vqc in config.items("txc"):
-            self.create(txc)
+        for dev, txc,vqc in config.items("txc"):
+            self.create(dev, txc)
             vqc = vqc.split(" ")[1]
-            self.associate(txc, vqc)
-            print "Created TXC %s associated VQ %s" % (txc, vqc)
+            self.associate(dev, txc, vqc)
+            print "Created TXC %s associated VQ %s on %s" % (txc, vqc, dev)
 
 class VQ:
-    def create(self, klass):
-        return Popen("echo %s > %s/create_vq" % (klass, ISO_SYSFS), shell=True).wait()
+    def create(self, dev, klass):
+        if not ISO_CREATED[dev]:
+            install(dev)
+        return Popen("echo dev %s %s > %s/create_vq" % (dev, klass, ISO_SYSFS), shell=True).wait()
 
-    def set_weight(self, klass, w):
-        return Popen("echo %s weight %s > %s/set_vq_weight" % (klass, w, ISO_SYSFS),
+    def set_weight(self, dev, klass, w):
+        return Popen("echo dev %s %s weight %s > %s/set_vq_weight" % (dev, klass, w, ISO_SYSFS),
                      shell=True).wait()
 
     def get(self):
         lines = open(ISO_PROCFILE, 'r').readlines()
         ret = []
+        dev = ""
         for line in lines:
+            if line.startswith("tx->dev"):
+                dev = line.strip().split(' ')[1]
             if line.startswith("vq class"):
                 lst = re_spaces.split(line)
                 vq_class = lst[2]
                 weight = lst[10]
-                ret.append((vq_class, weight))
+                ret.append((dev, vq_class, weight))
         self.vqs = ret
         return ret
 
@@ -130,17 +160,18 @@ class VQ:
         self.get()
         if not config.has_section("vqs"):
             config.add_section("vqs")
-        for txc,vqc in self.vqs:
-            config.set("vqs", txc, "weight " + vqc)
+        for dev,vqc,wt in self.vqs:
+            value = "weight %s, dev %s" % (wt, dev)
+            config.set("vqs", vqc, value)
 
     def load(self, config):
         if not config.has_section("vqs"):
             return
-        for vq,w in config.items("vqs"):
-            self.create(vq)
+        for dev,vq,w in config.items("vqs"):
+            self.create(dev, vq)
             w = w.split(" ")[1]
-            self.set_weight(vq, w)
-            print "Created VQ %s weight %s" % (vq, w)
+            self.set_weight(dev, vq, w)
+            print "Created VQ %s weight %s on dev %s" % (vq, w, dev)
 
 params = Parameters()
 txc = TxClass()
@@ -158,7 +189,7 @@ def set(args):
             args.set, args.value = args.set.split(',')
         params.set(args.set, args.value)
     except Exception, e:
-        die("error setting %s to %s" % (args.set, args.value))
+        die("error setting %s to %s.  (are you root?)" % (args.set, args.value))
 
 def get_rps(args):
     dev = args.get_rps
