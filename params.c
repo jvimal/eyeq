@@ -256,6 +256,9 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
 
 	n = sscanf(val, "dev %s associate txc %s vq %s", _devname, _txc, _vqc);
 
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
 	rcu_read_lock();
 	if(n != 3) {
 		ret = -EINVAL;
@@ -297,6 +300,7 @@ static int iso_sys_assoc_txc_vq(const char *val, struct kernel_param *kp) {
  out:
 
 	rcu_read_unlock();
+	up(&config_mutex);
 	return ret;
 }
 
@@ -315,6 +319,9 @@ static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
 	int n, ret = 0, weight;
 	struct net_device *dev = NULL;
 	struct iso_tx_context *txctx;
+
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
 
 	rcu_read_lock();
 	n = sscanf(val, "dev %s %s weight %d", _devname, _txc, &weight);
@@ -355,6 +362,7 @@ static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
  out:
 
 	rcu_read_unlock();
+	up(&config_mutex);
 	return ret;
 }
 
@@ -375,6 +383,9 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
 	int n, ret = 0, weight;
 	struct iso_rx_context *rxctx;
 	struct net_device *dev = NULL;
+
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
 
 	rcu_read_lock();
 	n = sscanf(val, "dev %s %s weight %d", _devname, _vqc, &weight);
@@ -414,6 +425,7 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
  out:
 
 	rcu_read_unlock();
+	up(&config_mutex);
 	return ret;
 }
 
