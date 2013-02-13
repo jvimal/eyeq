@@ -162,6 +162,7 @@ class VQ:
             config.add_section("vqs")
         for dev,vqc,wt in self.vqs:
             value = "weight %s, dev %s" % (wt, dev)
+            # todo: we assume vqc is unique across devs.
             config.set("vqs", vqc, value)
 
     def load(self, config):
