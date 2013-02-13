@@ -272,9 +272,6 @@ u32 iso_rl_dequeue(unsigned long _q) {
 	q->first_pkt_size = size;
 	timeout = 1;
 
-	/* XXX: this should be size <= q->tokens, but it somehow works.
-	 * Maybe it has better fairness :-? */
-
 	while(size <= q->tokens && sum <= ISO_MIN_BURST_BYTES * 2) {
 		pkt = __skb_dequeue(skq);
 		q->tokens -= size;
