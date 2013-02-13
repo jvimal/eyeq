@@ -420,6 +420,118 @@ static int iso_sys_set_vq_weight(const char *val, struct kernel_param *kp) {
 module_param_call(set_vq_weight, iso_sys_set_vq_weight, iso_sys_noget, NULL, S_IWUSR);
 
 
+/*
+ * Delete a txc.
+ * echo -n dev eth0 txc 00:00:00:00:01:01
+ * > /sys/module/perfiso/parameters/delete_txc
+ */
+static int iso_sys_delete_txc(const char *val, struct kernel_param *kp) {
+	char _txc[128], _devname[128];
+	iso_class_t txclass;
+	struct iso_tx_class *txc;
+	struct net_device *dev = NULL;
+	struct iso_tx_context *txctx;
+	int n, ret = 0;
+
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
+	n = sscanf(val, "dev %s txc %s", _devname, _txc);
+	if (n != 2) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev = iso_search_netdev(_devname);
+	if ((dev == NULL) || !iso_enabled(dev)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	txclass = iso_class_parse(_txc);
+	txctx = iso_txctx_dev(dev);
+
+	txc = iso_txc_find(txclass, txctx);
+	if (txc == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* Remove the txc from the hash table. */
+	hlist_del(&txc->hash_node);
+	iso_txc_free(txc);
+
+	printk(KERN_INFO "perfiso: Delete txc %s on dev %s\n",
+	       _txc, _devname);
+
+out:
+	up(&config_mutex);
+	return ret;
+}
+
+module_param_call(delete_txc, iso_sys_delete_txc, iso_sys_noget, NULL, S_IWUSR);
+
+/*
+ * Delete a VQ.
+ * echo -n dev eth0 vq 00:00:00:00:01:01
+ * > /sys/module/perfiso/parameters/delete_vq
+ */
+static int iso_sys_delete_vq(const char *val, struct kernel_param *kp) {
+	char _rxc[128], _devname[128];
+	iso_class_t vqclass;
+	struct iso_vq *vq;
+	struct net_device *dev = NULL;
+	struct iso_rx_context *rxctx;
+	int n, ret = 0;
+
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
+	n = sscanf(val, "dev %s vq %s", _devname, _rxc);
+	if (n != 2) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev = iso_search_netdev(_devname);
+	if ((dev == NULL) || !iso_enabled(dev)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	vqclass = iso_class_parse(_rxc);
+	rxctx = iso_rxctx_dev(dev);
+
+	vq = iso_vq_find(vqclass, rxctx);
+	if (vq == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*
+	 * A VQ can be removed only after all txc's pointing to it are
+	 * removed.  iso_vq_free itself checks for this condition.
+	 */
+	if (atomic_read(&vq->refcnt) > 0) {
+		ret = -EINVAL;
+		printk(KERN_INFO "perfiso: vq %s refcnt > 0.  Delete txc's first.\n",
+		       _rxc);
+		goto out;
+	}
+
+	iso_vq_free(vq);
+
+	printk(KERN_INFO "perfiso: Delete vq %s on dev %s\n",
+	       _rxc, _devname);
+
+out:
+	up(&config_mutex);
+	return ret;
+}
+
+module_param_call(delete_vq, iso_sys_delete_vq, iso_sys_noget, NULL, S_IWUSR);
+
+
 #ifdef QDISC
 int iso_enabled(struct net_device *dev) {
 	struct Qdisc *qdisc = dev->qdisc;
