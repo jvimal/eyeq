@@ -48,8 +48,8 @@ struct iso_tx_class {
 	struct iso_rl rl;
 	int weight;
 	int active;
-	int tx_rate, tx_rate_smooth, idle_count;
-	u32 vrate;
+	u32 tx_rate, tx_rate_smooth;
+	u32 min_rate;
 
 	/* Allocate from process context */
 	struct work_struct allocator;
@@ -73,6 +73,11 @@ struct iso_tx_context {
 	ktime_t txc_last_update_time;
 	int txc_total_weight;
 	spinlock_t txc_spinlock;
+
+	u64 tx_bytes;
+	u32 tx_rate;
+	/* RCP state */
+	u32 rate;
 };
 
 enum iso_create_t {
@@ -149,9 +154,15 @@ static inline void iso_txc_recompute_rates(struct iso_tx_context *context) {
 	struct iso_tx_class *txc, *txc_next;
 	unsigned long flags;
 
+	if (context->txc_total_weight == 0) {
+		printk(KERN_INFO "%s warning: context has zero weight.\n", __FUNCTION__);
+		return;
+	}
+
 	spin_lock_irqsave(&context->txc_spinlock, flags);
 	for_each_txc(txc, context) {
-		txc->vrate = txc->rl.rate = txc->weight * ISO_MAX_TX_RATE / context->txc_total_weight;
+		txc->min_rate = txc->weight * ISO_MAX_TX_RATE / context->txc_total_weight;
+		txc->rl.rate = txc->min_rate;
 	}
 	spin_unlock_irqrestore(&context->txc_spinlock, flags);
 }

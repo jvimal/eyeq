@@ -26,7 +26,7 @@ int ISO_TOKENBUCKET_DROP_THRESH_BYTES = 512 * 1024;
 int ISO_VQ_MARK_THRESH_BYTES = 128 * 1024;
 int ISO_VQ_MAX_BYTES = 256 * 1024;
 int ISO_RFAIR_INITIAL = 5000;
-int ISO_MIN_RFAIR = 2;
+int ISO_MIN_RFAIR = 10;
 int ISO_RFAIR_INCREMENT = 10;
 int ISO_RFAIR_DECREASE_INTERVAL_US = 120;
 int ISO_RFAIR_INCREASE_INTERVAL_US = 120;
@@ -48,7 +48,7 @@ int ISO_FEEDBACK_PACKET_IPPROTO = 143; // should be some unused protocol
 int ISO_RL_UPDATE_INTERVAL_US = 20;
 int ISO_BURST_FACTOR = 8;
 int ISO_VQ_UPDATE_INTERVAL_US = 200;
-int ISO_TXC_UPDATE_INTERVAL_US = 100;
+int ISO_TXC_UPDATE_INTERVAL_US = 200;
 int ISO_VQ_REFRESH_INTERVAL_US = 500;
 int ISO_MAX_QUEUE_LEN_BYTES = 128 * 1024;
 int ISO_TX_MARK_THRESH = 100 * 1024;
@@ -357,6 +357,8 @@ static int iso_sys_set_txc_weight(const char *val, struct kernel_param *kp) {
 	txctx->txc_total_weight += txc->weight;
 	spin_unlock_irqrestore(&txc->writelock, flags);
 
+	iso_txc_recompute_rates(txctx);
+
 	printk(KERN_INFO "perfiso: Set weight %d for txc %s on dev %s\n",
 	       weight, _txc, _devname);
  out:
@@ -471,6 +473,8 @@ static int iso_sys_delete_txc(const char *val, struct kernel_param *kp) {
 
 	/* Remove the txc from the hash table. */
 	hlist_del(&txc->hash_node);
+	txctx->txc_total_weight -= txc->weight;
+	iso_txc_recompute_rates(txctx);
 	iso_txc_free(txc);
 
 	printk(KERN_INFO "perfiso: Delete txc %s on dev %s\n",

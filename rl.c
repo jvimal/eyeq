@@ -27,6 +27,7 @@ int iso_rl_prep(struct iso_rl_cb __percpu **rlcb) {
 		cb->last = ktime_get();
 		cb->avg_us = 0;
 		cb->cpu = cpu;
+		cb->tx_bytes = 0;
 	}
 
 	return 0;
@@ -240,6 +241,13 @@ enum iso_verdict iso_rl_enqueue(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
 	return verdict;
 }
 
+static inline bool iso_rl_has_space_for(struct iso_rl *rl, struct sk_buff *pkt, int cpu)
+{
+	struct iso_rl_queue *q = per_cpu_ptr(rl->queue, cpu);
+	u32 len = skb_size(pkt);
+	return q->bytes_enqueued + len < ISO_MAX_QUEUE_LEN_BYTES;
+}
+
 /* This function MUST be executed with interrupts enabled */
 u32 iso_rl_dequeue(unsigned long _q) {
 	int timeout = 0;
@@ -278,8 +286,10 @@ u32 iso_rl_dequeue(unsigned long _q) {
 		q->bytes_enqueued -= size;
 
 		if(rl->txc == NULL) {
+			struct iso_rl_cb *cb = per_cpu_ptr(rl->rlcb, q->cpu);
 			skb_xmit(pkt);
 			q->bytes_xmit += size;
+			cb->tx_bytes += size;
 		} else {
 			/* Enqueue in parent tx class's rate limiter */
 			__skb_queue_tail(&list, pkt);

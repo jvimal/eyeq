@@ -77,6 +77,7 @@ struct iso_rl_cb {
 	ktime_t last;
 	u64 avg_us;
 	int cpu;
+	u64 tx_bytes;
 };
 
 int iso_rl_prep(struct iso_rl_cb __percpu **rlcb);

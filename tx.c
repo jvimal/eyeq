@@ -39,6 +39,10 @@ int iso_tx_init(struct iso_tx_context *context) {
 
 	INIT_LIST_HEAD(&context->txc_list);
 	context->txc_last_update_time = ktime_get();
+	context->rate = 2;
+	context->tx_rate = 0;
+	context->tx_bytes = 0;
+
 	spin_lock_init(&context->txc_spinlock);
 	if(iso_rl_prep(&context->rlcb))
 		return -1;
@@ -72,13 +76,25 @@ void iso_tx_exit(struct iso_tx_context *context) {
 	free_percpu(context->rlcb);
 }
 
+inline void iso_txctx_accum(struct iso_tx_context *context) {
+	u64 tx = 0;
+	int i;
+
+	for_each_online_cpu(i) {
+		struct iso_rl_cb *rlcb = per_cpu_ptr(context->rlcb, i);
+		tx += rlcb->tx_bytes;
+	}
+
+	context->tx_bytes = tx;
+}
+
 inline void iso_txc_tick(struct iso_tx_context *context) {
 	ktime_t now;
 	u64 dt;
 	unsigned long flags;
 	struct iso_tx_class *txc, *txc_next;
 	struct iso_rl *rl;
-	u64 total_weight, active_weight, min_xmit, last_xmit;
+	u64 total_weight, active_weight, last_xmit;
 
 	now = ktime_get();
 	dt = ktime_us_delta(now, context->txc_last_update_time);
@@ -95,46 +111,26 @@ inline void iso_txc_tick(struct iso_tx_context *context) {
 		active_weight = 0;
 		total_weight = 0;
 
+		last_xmit = context->tx_bytes;
+		iso_txctx_accum(context);
+		/* the total tx rate.  we want this to match ISO_MAX_TX_RATE */
+		context->tx_rate = ((context->tx_bytes - last_xmit) << 3) / dt;
+
+		/* Weighted RCP */
+		context->rate = context->rate * (3 * ISO_MAX_TX_RATE - context->tx_rate) / (ISO_MAX_TX_RATE << 1);
+		context->rate = min_t(u64, ISO_MAX_TX_RATE, context->rate);
+		context->rate = max_t(u64, ISO_MIN_RFAIR, context->rate);
+
 		for_each_txc(txc, context) {
 			rl = &txc->rl;
 			last_xmit = rl->accum_xmit;
 			iso_rl_accum(rl);
-			min_xmit = ((txc->rl.rate * dt) >> 3);
-
-			if((rl->accum_xmit - last_xmit) >= min_xmit) {
-				txc->active = 1;
-			} else {
-				txc->idle_count += 1;
-				if(txc->idle_count >= 1) {
-					txc->active = 0;
-					txc->idle_count = 0;
-				}
-			}
-
-			if(txc->active)
-				active_weight += txc->weight;
-			total_weight += txc->weight;
-			txc->tx_rate = (rl->accum_xmit - last_xmit) * 8 / dt;
+			txc->tx_rate = ((rl->accum_xmit - last_xmit) << 3) / dt;
 			txc->tx_rate_smooth = (txc->tx_rate_smooth * 15 + txc->tx_rate) / 16;
-		}
 
-		/* TODO: Clamp rates */
-		for_each_txc(txc, context) {
-			/* Quick shortcut to disable TX rate limiting */
-			if(unlikely(ISO_VQ_DRAIN_RATE_MBPS > 10000)) {
-				txc->rl.rate = ISO_MAX_TX_RATE;
-				continue;
-			}
-
-			if(txc->active) {
-				txc->vrate = txc->rl.rate;
-				txc->rl.rate = ISO_MAX_TX_RATE * txc->weight / active_weight;
-			} else {
-				/* Set small rate so we know when the class becomes active  */
-				int rate = ISO_MAX_TX_RATE * txc->weight / total_weight;
-				txc->vrate = 10;
-				txc->rl.rate = (txc->rl.rate + rate) / 2;
-			}
+			rl->rate = context->rate * txc->weight;
+			rl->rate = min_t(u64, ISO_MAX_TX_RATE, rl->rate);
+			rl->rate = max_t(u64, txc->min_rate, rl->rate);
 		}
 	skip:
 		spin_unlock_irqrestore(&context->txc_spinlock, flags);
@@ -159,11 +155,11 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 		sprintf(vqc, "(none)");
 	}
 
-	seq_printf(s, "txc class %s   assoc vq %s   freelist %d  idletick %d\n",
-			   buff, vqc, txc->freelist_count, txc->idle_count);
-	seq_printf(s, "txc rl tx_rate %u,%u   rate %u   xmit %llu   queued %llu\n",
-			   txc->tx_rate, txc->tx_rate_smooth, txc->rl.rate,
-			   txc->rl.accum_xmit, txc->rl.accum_enqueued);
+	seq_printf(s, "txc class %s   weight %d   assoc vq %s   freelist %d\n",
+		   buff, txc->weight, vqc, txc->freelist_count);
+	seq_printf(s, "txc rl tx_rate %u,%u   rate %u   min_rate %u   xmit %llu   queued %llu\n",
+		   txc->tx_rate, txc->tx_rate_smooth, txc->rl.rate, txc->min_rate,
+		   txc->rl.accum_xmit, txc->rl.accum_enqueued);
 	iso_rl_show(&txc->rl, s);
 	seq_printf(s, "\n");
 
@@ -360,10 +356,9 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	iso_rl_init(&txc->rl, txc->txctx->rlcb);
 	txc->weight = 1;
 	txc->active = 0;
-	txc->vrate = 100;
 	txc->tx_rate = 0;
+	txc->min_rate = ISO_MAX_TX_RATE;
 	txc->tx_rate_smooth = 0;
-	txc->idle_count = 0;
 
 	INIT_WORK(&txc->allocator, iso_txc_allocator);
 }

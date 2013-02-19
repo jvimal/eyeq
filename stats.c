@@ -45,7 +45,8 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 	int i;
 
 	for_each_tx_context(txctx) {
-		seq_printf(s, "tx->dev %s\n", txctx->netdev->name);
+		seq_printf(s, "tx->dev %s, tx_rate %u, rate %u\n",
+			   txctx->netdev->name, txctx->tx_rate, txctx->rate);
 
 		for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 			head = &txctx->iso_tx_bucket[i];
