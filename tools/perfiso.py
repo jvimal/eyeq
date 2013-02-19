@@ -6,7 +6,7 @@ import sys
 import ConfigParser
 import subprocess
 from subprocess import Popen
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import logging
 
 re_digits = re.compile(r'\d+')
@@ -334,3 +334,88 @@ def clear():
 def load_module(args):
     Popen("insmod %s" % args.module, shell=True).wait()
 
+def stats(dev):
+    """Parse the txc, rl and vq stats.  For each txc, we return tx
+    rate and the rate assigned to it.  For each rl, we return the dest
+    IP and current rate."""
+    # This is probably easier if the kernel module returns it in
+    # structured format.  But let's live with this for now.
+    import struct
+    import socket
+    def IP(hex):
+        return socket.inet_ntoa(struct.pack('!L', int(hex, 16)))
+
+    class Data:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+        def str(self, head, keys):
+            s = []
+            for k in keys:
+                v = self.__dict__[k]
+                s.append("%s: %s" % (k,v))
+            return head + ": " + ", ".join(s)
+    class Dev(Data):
+        def __str__(self):
+            keys = ['dev']
+            return Data.str(self, 'Dev', keys)
+    class Txc(Data):
+        def __str__(self):
+            keys = ['klass', 'min_rate', 'rate', 'tx_rate']
+            return Data.str(self, 'TXC', keys)
+    class Vq(Data):
+        def __str__(self):
+            keys = ['klass', 'rate', 'rx_rate', 'fb_rate']
+            return Data.str(self, 'VQ', keys)
+    class RL(Data):
+        def __str__(self):
+            keys = ['dst', 'rate']
+            return Data.str(self, 'RL', keys)
+    """
+    Dev = namedtuple('Dev', ['name', 'txcs', 'vqs'])
+    Txc = namedtuple('Txc', ['klass', 'min_rate', 'rate', 'tx_rate', 'rls'])
+    Vq = namedtuple('Vq', ['klass', 'min_rate', 'rate', 'rx_rate', 'fb_rate'])
+    RL = namedtuple('RL', ['dst', 'rate'])
+    """
+
+    dev = None
+    txc = None
+    vq = None
+    rl = None
+    rl_parse = False
+    devs = []
+    for line in open(ISO_PROCFILE).readlines():
+        if line.startswith('tx->dev'):
+            if dev is not None:
+                devs.append(dev)
+            devname = line.split(',')[0].split(' ')[1]
+            dev = Dev(dev=devname, txcs=[], vqs=[])
+            rl_parse = False
+        if line.startswith('txc class'):
+            klass = re_spaces.split(line)[2]
+            klass = klass
+            txc = Txc(klass=klass, rls=[], rate='', tx_rate='', min_rate='')
+            rl_parse = False
+        if line.startswith('txc rl'):
+            data = re_spaces.split(line)
+            txc.min_rate = data[7]
+            txc.rate = data[5]
+            txc.tx_rate = data[3].split(',')[1]
+            dev.txcs.append(txc)
+        if line.startswith('rate limiters:'):
+            rl_parse = True
+        if rl_parse and line.startswith('hash'):
+            data = re_spaces.split(line)
+            dst = IP(data[3])
+            rate = data[5]
+            rl = RL(dst=dst, rate=rate)
+            txc.rls.append(rl)
+        if line.startswith('vq class'):
+            data = re_spaces.split(line)
+            klass = data[2]
+            rate = data[6]
+            rx_rate = data[8]
+            fb_rate = data[10]
+            dev.vqs.append(Vq(klass=klass, rate=rate, rx_rate=rx_rate, fb_rate=fb_rate))
+    if dev is not None:
+        devs.append(dev)
+    return devs

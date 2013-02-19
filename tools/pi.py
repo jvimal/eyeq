@@ -68,6 +68,10 @@ parser.add_argument("--list", '-l',
                     help="List all tenants.",
                     action="store_true")
 
+parser.add_argument("--stats",
+                    help="List stats for tenants, rate limiters and VQs.",
+                    action="store_true")
+
 parser.add_argument('--weight', '-w',
                     help="Relative weight of tenant.",
                     default=1)
@@ -121,5 +125,16 @@ elif args.delete_tenant:
 elif args.list:
     perfiso.txc.list()
     perfiso.vqs.list()
+elif args.stats:
+    stats = perfiso.stats(args.dev)
+    INDENT = '\t'
+    for dev in stats:
+        print dev
+        for txc in dev.txcs:
+            print INDENT, txc
+            for rl in txc.rls:
+                print INDENT*2, rl
+        for vq in dev.vqs:
+            print INDENT, vq
 else:
     parser.print_help()
