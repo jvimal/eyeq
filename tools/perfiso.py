@@ -4,8 +4,10 @@ import os
 import re
 import sys
 import ConfigParser
+import subprocess
 from subprocess import Popen
 from collections import defaultdict
+import logging
 
 re_digits = re.compile(r'\d+')
 re_spaces = re.compile(r'\s+')
@@ -25,17 +27,23 @@ def read_file(f):
     return open(f).read().strip()
 
 def cmd(s):
-    return Popen(s, shell=True).wait()
+    try:
+        subprocess.check_output(s, shell=True)
+    except:
+        die("Command '%s' failed." % s)
+    return 0
 
 def install(dev):
+    global ISO_INSMOD
+    ISO_INSMOD = os.path.exists(ISO_PROCFILE)
     if not ISO_INSMOD:
         ISO_INSMOD = True
         if not os.path.exists(ISO_PATH):
             die("Cannot find %s" % ISO_PATH)
-        cmd("rmmod sch_htb; insmod %s; " % ISO_PATH)
-    if not ISO_CREATED[dev]:
+        cmd("rmmod perfiso; insmod %s; " % ISO_PATH)
+    if ISO_CREATED[dev]:
         return
-    cmd("tc qdisc add dev %s htb default 1" % dev)
+    cmd("tc qdisc add dev %s root handle 1: htb" % dev)
     # todo check ret value
     ISO_CREATED[dev] = True
 
@@ -89,28 +97,57 @@ class Parameters:
 class TxClass:
     def __init__(self):
         self.txcs = []
+        self.txcs_dev = defaultdict(list)
+        self.weights = defaultdict(lambda: defaultdict(str))
+        self.assoc = defaultdict(lambda: defaultdict(str))
+        self.get()
 
     def create(self, dev, klass):
         if not ISO_CREATED[dev]:
             install(dev)
-        return Popen("echo dev %s %s > %s/create_txc" % (dev, klass, ISO_SYSFS), shell=True).wait()
+        if klass in self.txcs_dev[dev]:
+            logging.error("txc %s already created." % klass)
+            return -1
+        c = "echo dev %s %s > %s/create_txc" % (dev, klass, ISO_SYSFS)
+        return cmd(c)
+
+    def delete(self, dev, klass):
+        if not ISO_CREATED[dev]:
+            return -1
+        if klass not in self.txcs_dev[dev]:
+            logging.error("txc %s not found." % klass)
+            return -1
+        c = "echo dev %s txc %s > %s/delete_txc" % (dev, klass, ISO_SYSFS)
+        return cmd(c)
+
+    def set_weight(self, dev, klass, w):
+        c = "echo dev %s %s weight %s > %s/set_txc_weight" % (dev, klass, w, ISO_SYSFS)
+        return cmd(c)
 
     def associate(self, dev, klass, vq):
-        return Popen("echo dev %s associate txc %s vq %s > %s/assoc_txc_vq" % (dev, klass, vq, ISO_SYSFS),
-                     shell=True).wait()
+        c = "echo dev %s associate txc %s vq %s > %s/assoc_txc_vq" % (dev, klass, vq, ISO_SYSFS)
+        return cmd(c)
 
     def get(self):
+        if not os.path.exists(ISO_PROCFILE):
+            return
         lines = open(ISO_PROCFILE, 'r').readlines()
         ret = []
         dev = ""
         for line in lines:
             if line.startswith("tx->dev"):
                 dev = line.strip().split(' ')[1]
+                dev = dev.replace(',','')
+                ISO_CREATED[dev] = True
             if line.startswith("txc class"):
                 lst = re_spaces.split(line)
                 tx_class = lst[2]
-                vq_class = lst[5]
-                ret.append((dev, tx_class, vq_class))
+                vq_class = lst[7]
+                weight = lst[4]
+                ret.append((dev, tx_class, vq_class, weight))
+                self.txcs_dev[dev].append(tx_class)
+                self.weights[dev][tx_class] = weight
+                self.assoc[dev][tx_class] = vq_class
         self.txcs = ret
         return ret
 
@@ -129,30 +166,63 @@ class TxClass:
             self.create(dev, txc)
             vqc = vqc.split(" ")[1]
             self.associate(dev, txc, vqc)
-            print "Created TXC %s associated VQ %s on %s" % (txc, vqc, dev)
+            logging.info("Created TXC %s associated VQ %s on %s" % (txc, vqc, dev))
+
+    def list(self):
+        INDENT = '\t'
+        print "Listing TXCs"
+        for dev, lst in self.txcs_dev.iteritems():
+            print "dev:", dev
+            for txc in lst:
+                print INDENT, txc, "weight", self.weights[dev][txc], "assoc vq", self.assoc[dev][txc]
+        return
 
 class VQ:
+    def __init__(self):
+        self.vqs_dev = defaultdict(list)
+        self.weights = defaultdict(lambda: defaultdict(str))
+        self.get()
+
     def create(self, dev, klass):
         if not ISO_CREATED[dev]:
             install(dev)
-        return Popen("echo dev %s %s > %s/create_vq" % (dev, klass, ISO_SYSFS), shell=True).wait()
+        if klass in self.vqs_dev[dev]:
+            logging.error("vq %s already created." % klass)
+            return -1
+        c = "echo dev %s %s > %s/create_vq" % (dev, klass, ISO_SYSFS)
+        return cmd(c)
+
+    def delete(self, dev, klass):
+        if not ISO_CREATED[dev]:
+            return -1
+        if klass not in self.vqs_dev[dev]:
+            logging.error("vq %s not found." % klass)
+            return -1
+        c = "echo dev %s vq %s > %s/delete_vq" % (dev, klass, ISO_SYSFS)
+        return cmd(c)
 
     def set_weight(self, dev, klass, w):
-        return Popen("echo dev %s %s weight %s > %s/set_vq_weight" % (dev, klass, w, ISO_SYSFS),
-                     shell=True).wait()
+        c = "echo dev %s %s weight %s > %s/set_vq_weight" % (dev, klass, w, ISO_SYSFS)
+        return cmd(c)
 
     def get(self):
+        if not os.path.exists(ISO_PROCFILE):
+            return
         lines = open(ISO_PROCFILE, 'r').readlines()
         ret = []
         dev = ""
         for line in lines:
             if line.startswith("tx->dev"):
                 dev = line.strip().split(' ')[1]
+                dev = dev.replace(',','')
+                ISO_CREATED[dev] = True
             if line.startswith("vq class"):
                 lst = re_spaces.split(line)
                 vq_class = lst[2]
                 weight = lst[10]
                 ret.append((dev, vq_class, weight))
+                self.vqs_dev[dev].append(vq_class)
+                self.weights[dev][vq_class] = weight
         self.vqs = ret
         return ret
 
@@ -172,7 +242,16 @@ class VQ:
             self.create(dev, vq)
             w = w.split(" ")[1]
             self.set_weight(dev, vq, w)
-            print "Created VQ %s weight %s on dev %s" % (vq, w, dev)
+            logging.info("Created VQ %s weight %s on dev %s" % (vq, w, dev))
+
+    def list(self):
+        INDENT = '\t'
+        print "Listing VQs"
+        for dev, lst in self.vqs_dev.iteritems():
+            print "dev:", dev
+            for vq in lst:
+                print INDENT, vq, "weight", self.weights[dev][vq]
+        return
 
 params = Parameters()
 txc = TxClass()
@@ -207,7 +286,7 @@ def set_rps(args):
     try:
         dev, q, value = args.set_rps.split(':')
     except:
-        print "set_rps expects 3 arguments: --set-rps dev:qnum:cpumask"
+        logging.error("set_rps expects 3 arguments: --set-rps dev:qnum:cpumask")
         return
     if 'rx' not in q:
         q = "rx-%s" % q
@@ -215,7 +294,7 @@ def set_rps(args):
     try:
         open(file, 'w').write(value)
     except:
-        print "Cannot find device %s/queue %s (path %s)" % (dev, q, file)
+        logging.error("Cannot find device %s/queue %s (path %s)" % (dev, q, file))
     print file, open(file, 'r').read().strip()
 
 def save_rps(args, config):
