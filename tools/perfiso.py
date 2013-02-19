@@ -3,11 +3,11 @@ import glob
 import os
 import re
 import sys
-import ConfigParser
 import subprocess
 from subprocess import Popen
 from collections import defaultdict, namedtuple
 import logging
+import json
 
 re_digits = re.compile(r'\d+')
 re_spaces = re.compile(r'\s+')
@@ -18,6 +18,8 @@ ISO_SYSFS      = '/sys/module/perfiso/parameters'
 ISO_CREATED    = defaultdict(bool)
 ISO_INSMOD     = False
 ISO_PATH       = '/root/iso/perfiso.ko'
+
+logging.basicConfig(level=logging.DEBUG)
 
 def die(s):
     print s
@@ -82,24 +84,14 @@ class Parameters:
     def __repr__(self):
         return self.__str__(pad=False)
 
-    def save(self, config):
-        if not config.has_section("params"):
-            config.add_section("params")
-        for name,value in self.params.iteritems():
-            config.set("params", name, value)
-
-    def load(self, config):
-        if not config.has_section("params"):
-            return
-        for name,value in config.items("params"):
+    def load(self, cfg):
+        for name,value in cfg.iteritems():
             self.set(name, value)
 
 class TxClass:
     def __init__(self):
         self.txcs = []
         self.txcs_dev = defaultdict(list)
-        self.weights = defaultdict(lambda: defaultdict(str))
-        self.assoc = defaultdict(lambda: defaultdict(str))
         self.get()
 
     def create(self, dev, klass):
@@ -109,6 +101,7 @@ class TxClass:
             logging.error("txc %s already created." % klass)
             return -1
         c = "echo dev %s %s > %s/create_txc" % (dev, klass, ISO_SYSFS)
+        logging.info("Creating txc %s on dev %s" % (klass, dev))
         return cmd(c)
 
     def delete(self, dev, klass):
@@ -122,6 +115,7 @@ class TxClass:
 
     def set_weight(self, dev, klass, w):
         c = "echo dev %s %s weight %s > %s/set_txc_weight" % (dev, klass, w, ISO_SYSFS)
+        logging.info("Setting weight of vq %s on dev %s to %s" % (klass, dev, w))
         return cmd(c)
 
     def associate(self, dev, klass, vq):
@@ -131,51 +125,23 @@ class TxClass:
     def get(self):
         if not os.path.exists(ISO_PROCFILE):
             return
-        lines = open(ISO_PROCFILE, 'r').readlines()
-        ret = []
-        dev = ""
-        for line in lines:
-            if line.startswith("tx->dev"):
-                dev = line.strip().split(' ')[1]
-                dev = dev.replace(',','')
-                ISO_CREATED[dev] = True
-            if line.startswith("txc class"):
-                lst = re_spaces.split(line)
-                tx_class = lst[2]
-                vq_class = lst[7]
-                weight = lst[4]
-                ret.append((dev, tx_class, vq_class, weight))
-                self.txcs_dev[dev].append(tx_class)
-                self.weights[dev][tx_class] = weight
-                self.assoc[dev][tx_class] = vq_class
-        self.txcs = ret
-        return ret
-
-    def save(self, config):
-        self.get()
-        if not config.has_section("txc"):
-            config.add_section("txc")
-        for dev,txc,vqc in self.txcs:
-            value = "vq %s, dev %s" % (vqc, dev)
-            config.set("txc", txc, value)
+        st = stats()
+        for dev in st:
+            for txc in dev.txcs:
+                self.txcs_dev[dev.dev].append(txc.klass)
+        return
 
     def load(self, config):
-        if not config.has_section("txc"):
-            return
-        for dev, txc,vqc in config.items("txc"):
-            self.create(dev, txc)
-            vqc = vqc.split(" ")[1]
-            self.associate(dev, txc, vqc)
-            logging.info("Created TXC %s associated VQ %s on %s" % (txc, vqc, dev))
-
-    def list(self):
-        INDENT = '\t'
-        print "Listing TXCs"
-        for dev, lst in self.txcs_dev.iteritems():
-            print "dev:", dev
-            for txc in lst:
-                print INDENT, txc, "weight", self.weights[dev][txc], "assoc vq", self.assoc[dev][txc]
-        return
+        for dev in config.get('config', {}).keys():
+            install(dev)
+            for val in config['config'][dev]['txcs']:
+                klass = val['klass']
+                weight = val['weight']
+                vq = val['assoc']
+                self.create(dev, klass)
+                self.set_weight(dev, klass, weight)
+                self.associate(dev, klass, vq)
+                logging.info("Created TXC %s weight %s on dev %s assoc %s" % (klass, weight, dev, vq))
 
 class VQ:
     def __init__(self):
@@ -190,6 +156,7 @@ class VQ:
             logging.error("vq %s already created." % klass)
             return -1
         c = "echo dev %s %s > %s/create_vq" % (dev, klass, ISO_SYSFS)
+        logging.info("Creating vq %s on dev %s" % (klass, dev))
         return cmd(c)
 
     def delete(self, dev, klass):
@@ -208,57 +175,21 @@ class VQ:
     def get(self):
         if not os.path.exists(ISO_PROCFILE):
             return
-        lines = open(ISO_PROCFILE, 'r').readlines()
-        ret = []
-        dev = ""
-        for line in lines:
-            if line.startswith("tx->dev"):
-                dev = line.strip().split(' ')[1]
-                dev = dev.replace(',','')
-                ISO_CREATED[dev] = True
-            if line.startswith("vq class"):
-                lst = re_spaces.split(line)
-                vq_class = lst[2]
-                weight = lst[10]
-                ret.append((dev, vq_class, weight))
-                self.vqs_dev[dev].append(vq_class)
-                self.weights[dev][vq_class] = weight
-        self.vqs = ret
-        return ret
-
-    def save(self, config):
-        self.get()
-        if not config.has_section("vqs"):
-            config.add_section("vqs")
-        for dev,vqc,wt in self.vqs:
-            value = "weight %s, dev %s" % (wt, dev)
-            # todo: we assume vqc is unique across devs.
-            config.set("vqs", vqc, value)
-
-    def load(self, config):
-        if not config.has_section("vqs"):
-            return
-        for dev,vq,w in config.items("vqs"):
-            self.create(dev, vq)
-            w = w.split(" ")[1]
-            self.set_weight(dev, vq, w)
-            logging.info("Created VQ %s weight %s on dev %s" % (vq, w, dev))
-
-    def list(self):
-        INDENT = '\t'
-        print "Listing VQs"
-        for dev, lst in self.vqs_dev.iteritems():
-            print "dev:", dev
-            for vq in lst:
-                print INDENT, vq, "weight", self.weights[dev][vq]
+        st = stats()
+        for dev in st:
+            for vq in dev.vqs:
+                self.vqs_dev[dev.dev].append(vq.klass)
         return
 
-params = Parameters()
-txc = TxClass()
-vqs = VQ()
-
-config = ConfigParser.ConfigParser()
-config.optionxform = str
+    def load(self, config):
+        for dev in config.get('config', {}).keys():
+            install(dev)
+            for val in config['config'][dev]['vqs']:
+                klass = val['klass']
+                weight = val['weight']
+                self.create(dev, klass)
+                self.set_weight(dev, klass, weight)
+                logging.info("Created VQ %s weight %s on dev %s" % (klass, weight, dev))
 
 def get(args):
     print params.__str__()
@@ -297,44 +228,49 @@ def set_rps(args):
         logging.error("Cannot find device %s/queue %s (path %s)" % (dev, q, file))
     print file, open(file, 'r').read().strip()
 
-def save_rps(args, config):
-    if not config.has_section("rps"):
-        config.add_section("rps")
-    for rxq, value in get_rps(args):
-        config.set("rps", rxq, value)
-
-def load_rps(args, config):
-    if not config.has_section("rps"):
-        return
-    dev = args.dev
-    for rxq, value in config.items("rps"):
-        args.set_rps = ':'.join([dev, rxq, value])
-        set_rps(args)
-
 def save(args):
     where = open(args.save, 'w')
-    params.save(config)
-    txc.save(config)
-    vqs.save(config)
-    save_rps(args, config)
-    config.write(where)
+    config = dict(config=dict(), params=params.params)
+    data = stats(None)
+    for dev in data:
+        curr = dict()
+        config['config'][dev.dev] = curr
+        curr['txcs'] = []
+        curr['vqs'] = []
+        for txc in dev.txcs:
+            curr['txcs'].append(txc.get())
+        for vq in dev.vqs:
+            curr['vqs'].append(vq.get())
+    json.dump(config, where, indent=4)
+    where.close()
 
 def load_config(args):
-    config = ConfigParser.ConfigParser()
-    config.optionxform = str
-    config.read(args.load)
-    params.load(config)
-    load_rps(args, config)
+    global config
+    config = json.load(open(args.load))
+    params.load(config.get('params'))
     vqs.load(config)
     txc.load(config)
 
 def clear():
+    global params, txc, vqs, ISO_CREATED, ISO_INSMOD
+    # See if we're already loaded
+    st = stats()
+    for dev in st:
+        c = "tc qdisc del dev %s root" % dev.dev
+        logging.debug("Removing on %s" % dev.dev)
+        cmd(c)
     Popen("rmmod perfiso", shell=True).wait()
+    ISO_CREATED = defaultdict(bool)
+    ISO_INSMOD = False
+
+    params = Parameters()
+    txc = TxClass()
+    vqs = VQ()
 
 def load_module(args):
     Popen("insmod %s" % args.module, shell=True).wait()
 
-def stats(dev):
+def stats(filterdev=None):
     """Parse the txc, rl and vq stats.  For each txc, we return tx
     rate and the rate assigned to it.  For each rl, we return the dest
     IP and current rate."""
@@ -354,18 +290,29 @@ def stats(dev):
                 v = self.__dict__[k]
                 s.append("%s: %s" % (k,v))
             return head + ": " + ", ".join(s)
+        def getdict(self, keys):
+            ret = {}
+            for k in keys:
+                ret[k] = self.__dict__[k]
+            return ret
     class Dev(Data):
         def __str__(self):
             keys = ['dev']
             return Data.str(self, 'Dev', keys)
     class Txc(Data):
         def __str__(self):
-            keys = ['klass', 'min_rate', 'rate', 'tx_rate']
+            keys = ['klass', 'min_rate', 'rate', 'tx_rate', 'assoc']
             return Data.str(self, 'TXC', keys)
+        def get(self):
+            keys = ['klass', 'weight', 'assoc']
+            return self.getdict(keys)
     class Vq(Data):
         def __str__(self):
             keys = ['klass', 'rate', 'rx_rate', 'fb_rate']
             return Data.str(self, 'VQ', keys)
+        def get(self):
+            keys = ['klass', 'weight']
+            return self.getdict(keys)
     class RL(Data):
         def __str__(self):
             keys = ['dst', 'rate']
@@ -383,17 +330,25 @@ def stats(dev):
     rl = None
     rl_parse = False
     devs = []
+    global ISO_INSMOD, ISO_CREATED
+    if not os.path.exists(ISO_PROCFILE):
+        die("Module not loaded")
+
+    ISO_INSMOD = True
     for line in open(ISO_PROCFILE).readlines():
         if line.startswith('tx->dev'):
-            if dev is not None:
+            ISO_CREATED[dev] = True
+            if dev is not None and (filterdev is None or filterdev == dev.dev):
                 devs.append(dev)
             devname = line.split(',')[0].split(' ')[1]
             dev = Dev(dev=devname, txcs=[], vqs=[])
             rl_parse = False
         if line.startswith('txc class'):
-            klass = re_spaces.split(line)[2]
-            klass = klass
-            txc = Txc(klass=klass, rls=[], rate='', tx_rate='', min_rate='')
+            data = re_spaces.split(line)
+            klass = data[2]
+            weight = data[4]
+            assoc = data[7]
+            txc = Txc(klass=klass, rls=[], rate='', tx_rate='', min_rate='', weight=weight, assoc=assoc)
             rl_parse = False
         if line.startswith('txc rl'):
             data = re_spaces.split(line)
@@ -415,7 +370,12 @@ def stats(dev):
             rate = data[6]
             rx_rate = data[8]
             fb_rate = data[10]
-            dev.vqs.append(Vq(klass=klass, rate=rate, rx_rate=rx_rate, fb_rate=fb_rate))
-    if dev is not None:
+            weight = data[14]
+            dev.vqs.append(Vq(klass=klass, rate=rate, rx_rate=rx_rate, fb_rate=fb_rate, weight=weight))
+    if dev is not None and (filterdev is None or filterdev == dev.dev):
         devs.append(dev)
     return devs
+
+params = Parameters()
+txc = TxClass()
+vqs = VQ()

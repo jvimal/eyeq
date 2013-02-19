@@ -123,8 +123,16 @@ elif args.delete_tenant:
     perfiso.txc.delete(dev, tid)
     perfiso.vqs.delete(dev, tid)
 elif args.list:
-    perfiso.txc.list()
-    perfiso.vqs.list()
+    stats = perfiso.stats(args.dev)
+    INDENT = '\t'
+    for dev in stats:
+        print "dev:", dev.dev
+        print "listing TXCs"
+        for txc in dev.txcs:
+            print INDENT, txc.klass, "weight", txc.weight, "assoc vq", txc.assoc
+        print "listing VQs"
+        for vq in dev.vqs:
+            print INDENT, vq.klass, "weight", vq.weight
 elif args.stats:
     stats = perfiso.stats(args.dev)
     INDENT = '\t'
