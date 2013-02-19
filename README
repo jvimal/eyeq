@@ -1,30 +1,98 @@
-WIP: Network performance isolation for Cloud Data Centres.
+EyeQ: Network Performance Isolation for the Datacenter
+======================================================
 
-Motivation:
+What it is
+----------
 
-The shared nature of multi-tenant environments raise concerns about
-how resources like CPU, memory, disk and network bandwidth are shared.
+EyeQ is a Linux kernel module to isolate your network from malicious
+misbehaving tenants.  It provides "average" transmit and receive rate
+guarantees (over few ms) to VMs/services on a server.
+
+Motivation: Why are we doing this?
+----------------------------------
+
+Multi-tenant environments are shared.  Sharing raises concerns about
+how performance predictability for CPU, memory, disk and network
+bandwidth.
+
 Multi-tenant could mean multiple services like MapReduce / Search /
-Storage sharing the same infrastructure, and different customers in
-the context of a cloud.  It is important that tenants are isolated
-from each other so that the activity of one tenant does not adversely
-impact other tenants sharing the same insfrastructure.
+Storage sharing the same infrastructure (e.g. github, Twitter,
+Facebook, etc.), and different customers in the context of a public
+cloud (e.g. Amazon AWS, Windows Azure, etc.).
 
-In this report, we look at isolation mechanisms for the network.
-While network ACLs provide reachability isolation between tenants, it
-does not provide performance isolation; a tenant can gain an unfair
-share of network bandwidth by increasing the number of TCP
-connections, or worse, use UDP.  Static source-only rate limiting does
-not suffice, as a tenant can horizontally scale and increase the
-number of transmitters to generate a large N-to-1 traffic pattern.
-Hence, we need a more robust mechanism to conform tenants to a well
-understood model of sharing the network, keeping in mind that the
-tenants cannot be trusted.
+It is important that tenants are isolated from each other so that the
+network activity of one tenant does not adversely impact other tenants
+sharing the same insfrastructure.
 
-People: (Stanford University)
-* Vimal
+More importantly, our goal is to provide each VM of a tenant with a
+bandwidth assurance tenants can _understand_.
+
+How it works
+------------
+
+EyeQ works end-to-end and uses rate limiters to allocate rates to
+flows such that traffic classes meet their guarantees.  These rate
+limiters self-program (using congestion control) and adjust their
+rates dynamically as flows come and go, so that it doesn't violate
+other VM's rate guarantees.
+
+What's special
+--------------
+
+EyeQ requires no per-flow or per-tenant CoS queues in the network.
+You don't need to touch configuration in 100s of network devices as
+you provision new VMs or services.
+
+EyeQ is designed to operate at high speeds (10Gb/s and beyond).  The
+core components of EyeQ, the rate limiters and congestion detectors,
+are optimised to incur low CPU overhead and low latency at high line
+rates.  These rate limiters work with multiqueue network devices and
+outperform Linux's rate limiters (htb, tbf, hfsc, etc.).
+
+EyeQ does not place trust on a VM.  It works irrespective of VM's
+transport, be it TCP Reno, BIC, CUBIC, etc. or UDP.  You can now
+safely allow UDP traffic to operate on your network.
+
+The rate control in EyeQ is responsive to sudden traffic bursts and
+converges 50 times faster than TCP (few ms, instead of 100s of ms).
+
+More links
+----------
+
+* Paper with full design and evaluation to appear in NSDI 2013
+
+* Talk/slides at NSDI 2013
+
+* Early workshop paper at HotCloud 2012
+  https://www.usenix.org/system/files/conference/hotcloud12/hotcloud12-final38.pdf
+
+* Talk and slides at HotCloud 2012
+  https://www.usenix.org/conference/hotcloud12/eyeq-practical-network-performance-isolation-multi-tenant-cloud
+
+
+People
+------
+
+Stanford University
+* Vimalkumar Jeyakumar (or, just Vimal)
+  http://www.stanford.edu/~jvimal
+
 * Mohammad Alizadeh
-* Prof. David Mazieres
-* Prof. Balaji Prabhakar
+  http://www.stanford.edu/~alizade
 
-Stay tuned for more information.
+* Prof. David Mazieres
+  http://www.scs.stanford.edu/~dm
+
+* Prof. Balaji Prabhakar
+  http://www.stanford.edu/~balaji
+
+Collaborations: (Windows Azure)
+* Changhoon Kim
+* Albert Greenberg
+
+Why the name EyeQ?
+------------------
+
+No one has asked me this, but this is just for the record. :-) EyeQ
+stands for "An Eye for Quality."  Moreover, I just realized that EyeQ
+rhymes with IQ which is usually used to denote Input Queued switches.
