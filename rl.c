@@ -257,8 +257,7 @@ u32 iso_rl_dequeue(unsigned long _q) {
 	struct iso_rl_queue *q = (struct iso_rl_queue *)_q;
 	struct iso_rl_queue *rootq;
 	struct iso_rl *rl = q->rl;
-	enum iso_verdict verdict;
-	struct sk_buff_head *skq, list;
+	struct sk_buff_head *skq;
 
 	/* Try to borrow from the global token pool; if that fails,
 	   program the timeout for this queue */
@@ -269,9 +268,7 @@ u32 iso_rl_dequeue(unsigned long _q) {
 			goto timeout;
 	}
 
-	skb_queue_head_init(&list);
 	skq = &q->list;
-
 	if(skb_queue_len(skq) == 0)
 		goto unlock;
 
@@ -281,18 +278,25 @@ u32 iso_rl_dequeue(unsigned long _q) {
 	timeout = 1;
 
 	while(size <= q->tokens && sum <= ISO_MIN_BURST_BYTES * 2) {
-		pkt = __skb_dequeue(skq);
-		q->tokens -= size;
-		q->bytes_enqueued -= size;
-
 		if(rl->txc == NULL) {
 			struct iso_rl_cb *cb = per_cpu_ptr(rl->rlcb, q->cpu);
+			__skb_dequeue(skq);
 			skb_xmit(pkt);
+			q->tokens -= size;
+			q->bytes_enqueued -= size;
 			q->bytes_xmit += size;
 			cb->tx_bytes += size;
 		} else {
 			/* Enqueue in parent tx class's rate limiter */
-			__skb_queue_tail(&list, pkt);
+			if (iso_rl_has_space_for(&rl->txc->rl, pkt, q->cpu)) {
+				__skb_dequeue(skq);
+				iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
+				q->tokens -= size;
+				q->bytes_enqueued -= size;
+				q->bytes_xmit += size;
+			} else {
+				break;
+			}
 		}
 
 		if(skb_queue_len(skq) == 0) {
@@ -308,13 +312,6 @@ u32 iso_rl_dequeue(unsigned long _q) {
 unlock:
 
 	if(rl->txc != NULL) {
-		/* Now transfer the dequeued packets to the parent's queue */
-		while((pkt = __skb_dequeue(&list)) != NULL) {
-			verdict = iso_rl_enqueue(&rl->txc->rl, pkt, q->cpu);
-			if(verdict == ISO_VERDICT_DROP)
-				kfree_skb(pkt);
-		}
-
 		/* Trigger the parent dequeue */
 		rootq = per_cpu_ptr(rl->txc->rl.queue, q->cpu);
 		iso_rl_dequeue((unsigned long)rootq);
