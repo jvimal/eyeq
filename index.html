@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+               "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+lang="en" xml:lang="en">
+<head>
+<title>EyeQ Documentation</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+<meta name="generator" content="Org-mode"/>
+<meta name="generated" content="2013-02-19 18:30:27 PST"/>
+<meta name="author" content="Vimalkumar"/>
+<meta name="description" content=""/>
+<meta name="keywords" content=""/>
+<style type="text/css">
+ <!--/*--><![CDATA[/*><!--*/
+  html { font-family: Times, serif; font-size: 12pt; }
+  .title  { text-align: center; }
+  .todo   { color: red; }
+  .done   { color: green; }
+  .tag    { background-color: #add8e6; font-weight:normal }
+  .target { }
+  .timestamp { color: #bebebe; }
+  .timestamp-kwd { color: #5f9ea0; }
+  .right  {margin-left:auto; margin-right:0px;  text-align:right;}
+  .left   {margin-left:0px;  margin-right:auto; text-align:left;}
+  .center {margin-left:auto; margin-right:auto; text-align:center;}
+  p.verse { margin-left: 3% }
+  pre {
+	border: 1pt solid #AEBDCC;
+	background-color: #F3F5F7;
+	padding: 5pt;
+	font-family: courier, monospace;
+        font-size: 90%;
+        overflow:auto;
+  }
+  table { border-collapse: collapse; }
+  td, th { vertical-align: top;  }
+  th.right  { text-align:center;  }
+  th.left   { text-align:center;   }
+  th.center { text-align:center; }
+  td.right  { text-align:right;  }
+  td.left   { text-align:left;   }
+  td.center { text-align:center; }
+  dt { font-weight: bold; }
+  div.figure { padding: 0.5em; }
+  div.figure p { text-align: center; }
+  textarea { overflow-x: auto; }
+  .linenr { font-size:smaller }
+  .code-highlighted {background-color:#ffff00;}
+  .org-info-js_info-navigation { border-style:none; }
+  #org-info-js_console-label { font-size:10px; font-weight:bold;
+                               white-space:nowrap; }
+  .org-info-js_search-highlight {background-color:#ffff00; color:#000000;
+                                 font-weight:bold; }
+  /*]]>*/-->
+</style>
+<style> * { font-family: sans-serif; } body  { width: 700px; margin: 0 auto; } </style>
+<style> p { text-align: left; line-height: 1.2em; font-size: 1.2em; } li {padding-bottom: 0.2em;}</style>
+<style> pre, pre span { font-family: monospace; } </style>
+<style> code { font-family: monospace; font-size: 10pt; background-color: #EDEDED; padding: 2px;} </style>
+<style> th,td { border: 1px solid #ddd } </style>
+<style> div.figure { align: center; } </style>
+<style> h2 { border-bottom: 1px solid #ccc; color: #900; }
+h3, h4, h5, h6 {border-bottom: 1px solid #ccc; color: blue; background-color: #fff; }</style>
+<script type="text/javascript">
+<!--/*--><![CDATA[/*><!--*/
+ function CodeHighlightOn(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(null != target) {
+     elem.cacheClassElem = elem.className;
+     elem.cacheClassTarget = target.className;
+     target.className = "code-highlighted";
+     elem.className   = "code-highlighted";
+   }
+ }
+ function CodeHighlightOff(elem, id)
+ {
+   var target = document.getElementById(id);
+   if(elem.cacheClassElem)
+     elem.className = elem.cacheClassElem;
+   if(elem.cacheClassTarget)
+     target.className = elem.cacheClassTarget;
+ }
+/*]]>*///-->
+</script>
+
+</head>
+<body>
+<div id="content">
+
+<h1 class="title">EyeQ Documentation</h1>
+
+
+<div id="table-of-contents">
+<h2>Table of Contents</h2>
+<div id="text-table-of-contents">
+<ul>
+<li><a href="#sec-1">1 What is EyeQ? </a></li>
+<li><a href="#sec-2">2 Getting started </a>
+<ul>
+<li><a href="#sec-2_1">2.1 Repositories </a></li>
+<li><a href="#sec-2_2">2.2 Downloading </a></li>
+<li><a href="#sec-2_3">2.3 Compiling </a></li>
+<li><a href="#sec-2_4">2.4 Installing </a></li>
+<li><a href="#sec-2_5">2.5 Configuration </a>
+<ul>
+<li><a href="#sec-2_5_1">2.5.1 Creating tenants </a></li>
+<li><a href="#sec-2_5_2">2.5.2 Removing tenants </a></li>
+<li><a href="#sec-2_5_3">2.5.3 Parameters </a></li>
+</ul>
+</li>
+<li><a href="#sec-2_6">2.6 Rate limiter </a>
+<ul>
+<li><a href="#sec-2_6_1">2.6.1 Obtaining, Compiling and Installing </a></li>
+</ul></li>
+</ul>
+</li>
+<li><a href="#sec-3">3 Trying things out </a>
+<ul>
+<li><a href="#sec-3_1">3.1 Mininet </a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+
+<div id="outline-container-1" class="outline-2">
+<h2 id="sec-1"><span class="section-number-2">1</span> What is EyeQ? </h2>
+<div class="outline-text-2" id="text-1">
+
+<p>EyeQ is a distributed transport layer for your datacenter, which
+provides predictable transmit <span style="text-decoration:underline;">and</span> receive bandwidth guarantees (over
+few ms) to VMs/services on a server, without having to configure CoS
+queues in your network for every VM/service..
+</p>
+<p>
+For more details, refer to our paper:
+<a href="http://www.stanford.edu/~jvimal/EyeQ-NSDI13.pdf">http://www.stanford.edu/~jvimal/EyeQ-NSDI13.pdf</a>
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2" class="outline-2">
+<h2 id="sec-2"><span class="section-number-2">2</span> Getting started </h2>
+<div class="outline-text-2" id="text-2">
+
+
+</div>
+
+<div id="outline-container-2_1" class="outline-3">
+<h3 id="sec-2_1"><span class="section-number-3">2.1</span> Repositories </h3>
+<div class="outline-text-3" id="text-2_1">
+
+<p>I maintain two repositories for EyeQ.  One is for bleeding edge
+development, and the other is for releases.  The bleeding edge
+contains all branches with untested and unfinished code.  The release
+branch is more stable.
+</p>
+<p>
+The stable repository is here: <a href="http://github.com/jvimal/eyeq">http://github.com/jvimal/eyeq</a>.  The
+bleeding edge repository is under an older project name:
+<a href="http://github.com/jvimal/perfiso_10g">http://github.com/jvimal/perfiso<sub>10g</sub></a>.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2_2" class="outline-3">
+<h3 id="sec-2_2"><span class="section-number-3">2.2</span> Downloading </h3>
+<div class="outline-text-3" id="text-2_2">
+
+<p>You can clone the github repositories, which has the source code to
+compile the Linux kernel module:
+</p>
+
+
+<pre class="src src-bash">$ git clone https://github.com/jvimal/eyeq.git
+</pre>
+
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2_3" class="outline-3">
+<h3 id="sec-2_3"><span class="section-number-3">2.3</span> Compiling </h3>
+<div class="outline-text-3" id="text-2_3">
+
+<p>I have tested EyeQ with Linux 3.0 and above.  EyeQ is a kernel module
+that implements a queueing discpline.  So you need the kernel headers
+to compile EyeQ.  You can find available headers on your system in
+<code>/lib/modules</code>.
+</p>
+
+
+
+<pre class="src src-bash">$ cd eyeq
+$ ls /lib/modules/
+3.2.0-23-generic
+$ make
+</pre>
+
+
+
+<p>
+This will produce a kernel module called <code>perfiso.ko</code>.  This is the
+performance isolation module.
+</p>
+</div>
+
+</div>
+
+<div id="outline-container-2_4" class="outline-3">
+<h3 id="sec-2_4"><span class="section-number-3">2.4</span> Installing </h3>
+<div class="outline-text-3" id="text-2_4">
+
+<p>EyeQ hooks into the transmit path by acting as a queueing discipline.
+To avoid dependency on <code>iproute</code>, EyeQ replaces the hierarchical token
+bucket (<code>htb</code>) module so you can use your existing <code>tc</code> tool to
+install EyeQ.  So you need to remove <code>htb</code> before you can use EyeQ.
+EyeQ hooks into the receive path using <code>netdev_rx_handler_register</code>
+callback.
+</p>
+<p>
+To install EyeQ on a device:
+</p>
+
+
+<pre class="src src-bash">$ rmmod sch_htb
+
+$ insmod ./perfiso.ko
+
+$ tc qdisc show
+qdisc pfifo_fast 0: dev eth0 root refcnt 2 bands 3 priomap...
+
+$ tc qdisc add dev eth0 root handle 1: htb
+
+$ dmesg | tail
+perfiso: Init TX path for eth0
+perfiso: Init RX path for eth0
+
+$ tc qdisc show
+qdisc htb 1: dev eth0 root
+</pre>
+
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2_5" class="outline-3">
+<h3 id="sec-2_5"><span class="section-number-3">2.5</span> Configuration </h3>
+<div class="outline-text-3" id="text-2_5">
+
+<p>We provide a separate python configuration tool to work with EyeQ, as
+it does not use the standard <code>tc</code> interface.  EyeQ kernel module
+exports a sysfs file which it uses for all configuration mechanisms.
+</p>
+
+</div>
+
+<div id="outline-container-2_5_1" class="outline-4">
+<h4 id="sec-2_5_1"><span class="section-number-4">2.5.1</span> Creating tenants </h4>
+<div class="outline-text-4" id="text-2_5_1">
+
+<p>EyeQ lets you filter tenants using IP addresses.  Filters help
+correctly classify packets to their corresponding tenants on the
+transmit and receive path, for proper resource accounting.  We use the
+source IP on the transmit path, and destination IP on the receive
+path.  Implementing classifiers is easy, but contact me if you need a
+particular classifier in EyeQ.
+</p>
+<p>
+Each tenant has a classifier and a "weight" that denotes the relative
+importance of one tenant over another.  For example, to create a
+tenant with IP address 10.0.1.1, do:
+</p>
+
+
+
+<pre class="src src-bash">$ tools/pi.py --create 10.0.1.1 --dev eth0
+INFO:root:Creating txc 10.0.1.1 on dev eth0
+INFO:root:Creating vq 10.0.1.1 on dev eth0
+INFO:root:Setting weight of vq 10.0.1.1 on dev eth0 to 1
+
+$ tools/pi.py --list
+dev: eth0
+listing TXCs
+        10.0.1.1 weight 1 assoc vq 10.0.1.1
+listing VQs
+        10.0.1.1 weight 1
+</pre>
+
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2_5_2" class="outline-4">
+<h4 id="sec-2_5_2"><span class="section-number-4">2.5.2</span> Removing tenants </h4>
+<div class="outline-text-4" id="text-2_5_2">
+
+
+
+
+<pre class="src src-bash">$ tools/pi.py --delete 10.0.1.1 --dev eth0
+</pre>
+
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2_5_3" class="outline-4">
+<h4 id="sec-2_5_3"><span class="section-number-4">2.5.3</span> Parameters </h4>
+<div class="outline-text-4" id="text-2_5_3">
+
+<p>EyeQ exposes a number of knobs to fine tune its operation.  In many
+cases the default should just suffice.  The default parameters are
+tuned for 10GbE.
+</p>
+
+
+
+<pre class="src src-bash">$ tools/pi.py --get
+ 1           ISO_RFAIR_INCREASE_INTERVAL_US        120
+ 2                  IsoAutoGenerateFeedback          1
+ 3               ISO_TOKENBUCKET_TIMEOUT_NS      50000
+ 4               ISO_TXC_UPDATE_INTERVAL_US        200
+... a lot more.
+</pre>
+
+
+
+<p>
+Stay tuned for a default set of parameters for 1GbE networks.
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-2_6" class="outline-3">
+<h3 id="sec-2_6"><span class="section-number-3">2.6</span> Rate limiter </h3>
+<div class="outline-text-3" id="text-2_6">
+
+<p>We have also implemented EyeQ's rate limiter, optimized for multiqueue
+networking devices, as a drop-in replacement to Linux's Token Bucket
+Filter (<code>tbf</code>).  You can download it from the ptb repository:
+<a href="https://github.com/jvimal/ptb">https://github.com/jvimal/ptb</a>.
+</p>
+
+</div>
+
+<div id="outline-container-2_6_1" class="outline-4">
+<h4 id="sec-2_6_1"><span class="section-number-4">2.6.1</span> Obtaining, Compiling and Installing </h4>
+<div class="outline-text-4" id="text-2_6_1">
+
+<p>Since <code>ptb</code> is a drop-in replacement for <code>tbf</code>, you will have to
+remove <code>tbf</code> from a running kernel before you can use <code>ptb</code> on Linux
+kernels 3.7+.
+</p>
+
+
+
+<pre class="src src-bash">$ rmmod sch_tbf
+$ git clone https://github.com/jvimal/ptb.git
+$ cd ptb
+$ make
+$ insmod ./sch_ptb.ko
+</pre>
+
+
+
+<p>
+There is a sample script with default options so you can test PTB out.
+</p>
+
+
+
+<pre class="src src-bash">$ cat tc.sh
+#!/bin/bash
+
+dev=eth2
+tc qdisc del dev $dev root
+rmmod sch_ptb
+make
+insmod ./sch_ptb.ko
+tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
+</pre>
+
+
+
+</div>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Trying things out </h2>
+<div class="outline-text-2" id="text-3">
+
+<p>The scripts used in all our experiments in the NSDI paper are
+available online in the <a href="https://github.com/jvimal/eyeq-tests">test repository</a>.
+</p>
+
+</div>
+
+<div id="outline-container-3_1" class="outline-3">
+<h3 id="sec-3_1"><span class="section-number-3">3.1</span> Mininet </h3>
+<div class="outline-text-3" id="text-3_1">
+
+<p><a href="http://mininet.github.com/">Mininet</a> is a collection of useful scripts to configure features such
+as network namespaces, containers and <a href="http://lartc.org/">Linux Traffic Control</a>, to create
+lightweight virtual networks on a single machine.  I am one of the
+authors of the second release of Mininet, with Bob Lantz, Brandon
+Heller and Nikhil Handigol.
+</p>
+<p>
+Mininet uses <code>tc</code> to configure <code>htb</code> inorder to emulate links with of
+some capacity.  So you can use Mininet to configure EyeQ as well.
+Unfortunately, one of (current) Mininet's limitations is that you are
+constrained to resources that one server can offer, especially CPU.
+So you can try EyeQ with few (10) links operating at slower link
+speeds, say 10&ndash;100Mb/s.
+</p>
+<p>
+Scripts to run on Mininet forthcoming.
+</p></div>
+</div>
+</div>
+<div id="postamble">
+<p class="author">Author: Vimalkumar (<a href="mailto:j.vimal@gmail.com">j.vimal@gmail.com</a>)</p>
+<p class="date">Date: 2013-02-19 18:30:27 PST</p>
+<p class="creator">Generated by Org version 7.4 with Emacs version 24</p>
+<p class="xhtml-validation"><a href="http://validator.w3.org/check?uri=referer">Validate XHTML 1.0</a></p>
+</div>
+</div>
+</body>
+</html>

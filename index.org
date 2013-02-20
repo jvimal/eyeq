@@ -1,0 +1,188 @@
+#+STYLE: <style> * { font-family: sans-serif; } body  { width: 700px; margin: 0 auto; } </style>
+#+STYLE: <style> p { text-align: left; line-height: 1.2em; font-size: 1.2em; } li {padding-bottom: 0.2em;}</style>
+#+STYLE: <style> pre, pre span { font-family: monospace; } </style>
+#+STYLE: <style> code { font-family: monospace; font-size: 10pt; background-color: #EDEDED; padding: 2px;} </style>
+#+STYLE: <style> th,td { border: 1px solid #ddd } </style>
+#+STYLE: <style> div.figure { align: center; } </style>
+#+STYLE: <style> h2 { border-bottom: 1px solid #ccc; color: #900; }
+#+STYLE: h3, h4, h5, h6 {border-bottom: 1px solid #ccc; color: blue; background-color: #fff; }</style>
+#+OPTIONS: _:nil
+#+EMAIL: j.vimal@gmail.com
+
+#+TITLE: EyeQ Documentation
+#+AUTHOR: Vimalkumar
+
+* What is EyeQ?
+EyeQ is a distributed transport layer for your datacenter, which
+provides predictable transmit _and_ receive bandwidth guarantees (over
+few ms) to VMs/services on a server, without having to configure CoS
+queues in your network for every VM/service..
+
+For more details, refer to our paper:
+[[http://www.stanford.edu/~jvimal/EyeQ-NSDI13.pdf]]
+
+* Getting started
+** Repositories
+I maintain two repositories for EyeQ.  One is for bleeding edge
+development, and the other is for releases.  The bleeding edge
+contains all branches with untested and unfinished code.  The release
+branch is more stable.
+
+The stable repository is here: [[http://github.com/jvimal/eyeq]].  The
+bleeding edge repository is under an older project name:
+[[http://github.com/jvimal/perfiso_10g]].
+
+** Downloading
+You can clone the github repositories, which has the source code to
+compile the Linux kernel module:
+#+BEGIN_SRC bash
+$ git clone https://github.com/jvimal/eyeq.git
+#+END_SRC
+
+** Compiling
+I have tested EyeQ with Linux 3.0 and above.  EyeQ is a kernel module
+that implements a queueing discpline.  So you need the kernel headers
+to compile EyeQ.  You can find available headers on your system in
+=/lib/modules=.
+
+#+BEGIN_SRC bash
+$ cd eyeq
+$ ls /lib/modules/
+3.2.0-23-generic
+$ make
+#+END_SRC
+
+This will produce a kernel module called =perfiso.ko=.  This is the
+performance isolation module.
+
+** Installing
+EyeQ hooks into the transmit path by acting as a queueing discipline.
+To avoid dependency on =iproute=, EyeQ replaces the hierarchical token
+bucket (=htb=) module so you can use your existing =tc= tool to
+install EyeQ.  So you need to remove =htb= before you can use EyeQ.
+EyeQ hooks into the receive path using =netdev_rx_handler_register=
+callback.
+
+To install EyeQ on a device:
+#+BEGIN_SRC bash
+$ rmmod sch_htb
+
+$ insmod ./perfiso.ko
+
+$ tc qdisc show
+qdisc pfifo_fast 0: dev eth0 root refcnt 2 bands 3 priomap...
+
+$ tc qdisc add dev eth0 root handle 1: htb
+
+$ dmesg | tail
+perfiso: Init TX path for eth0
+perfiso: Init RX path for eth0
+
+$ tc qdisc show
+qdisc htb 1: dev eth0 root
+#+END_SRC
+
+** Configuration
+We provide a separate python configuration tool to work with EyeQ, as
+it does not use the standard =tc= interface.  EyeQ kernel module
+exports a sysfs file which it uses for all configuration mechanisms.
+
+*** Creating tenants
+EyeQ lets you filter tenants using IP addresses.  Filters help
+correctly classify packets to their corresponding tenants on the
+transmit and receive path, for proper resource accounting.  We use the
+source IP on the transmit path, and destination IP on the receive
+path.  Implementing classifiers is easy, but contact me if you need a
+particular classifier in EyeQ.
+
+Each tenant has a classifier and a "weight" that denotes the relative
+importance of one tenant over another.  For example, to create a
+tenant with IP address 10.0.1.1, do:
+
+#+BEGIN_SRC bash
+$ tools/pi.py --create 10.0.1.1 --dev eth0
+INFO:root:Creating txc 10.0.1.1 on dev eth0
+INFO:root:Creating vq 10.0.1.1 on dev eth0
+INFO:root:Setting weight of vq 10.0.1.1 on dev eth0 to 1
+
+$ tools/pi.py --list
+dev: eth0
+listing TXCs
+	10.0.1.1 weight 1 assoc vq 10.0.1.1
+listing VQs
+	10.0.1.1 weight 1
+#+END_SRC
+
+*** Removing tenants
+#+BEGIN_SRC bash
+$ tools/pi.py --delete 10.0.1.1 --dev eth0
+#+END_SRC
+
+*** Parameters
+EyeQ exposes a number of knobs to fine tune its operation.  In many
+cases the default should just suffice.  The default parameters are
+tuned for 10GbE.
+
+#+BEGIN_SRC bash
+$ tools/pi.py --get
+ 1           ISO_RFAIR_INCREASE_INTERVAL_US        120
+ 2                  IsoAutoGenerateFeedback          1
+ 3               ISO_TOKENBUCKET_TIMEOUT_NS      50000
+ 4               ISO_TXC_UPDATE_INTERVAL_US        200
+... a lot more.
+#+END_SRC
+
+Stay tuned for a default set of parameters for 1GbE networks.
+
+** Rate limiter
+We have also implemented EyeQ's rate limiter, optimized for multiqueue
+networking devices, as a drop-in replacement to Linux's Token Bucket
+Filter (=tbf=).  You can download it from the ptb repository:
+[[https://github.com/jvimal/ptb]].
+
+*** Obtaining, Compiling and Installing
+Since =ptb= is a drop-in replacement for =tbf=, you will have to
+remove =tbf= from a running kernel before you can use =ptb= on Linux
+kernels 3.7+.
+
+#+BEGIN_SRC bash
+$ rmmod sch_tbf
+$ git clone https://github.com/jvimal/ptb.git
+$ cd ptb
+$ make
+$ insmod ./sch_ptb.ko
+#+END_SRC
+
+There is a sample script with default options so you can test PTB out.
+
+#+BEGIN_SRC bash
+$ cat tc.sh
+#!/bin/bash
+
+dev=eth2
+tc qdisc del dev $dev root
+rmmod sch_ptb
+make
+insmod ./sch_ptb.ko
+tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
+#+END_SRC
+
+* Trying things out
+The scripts used in all our experiments in the NSDI paper are
+available online in the [[https://github.com/jvimal/eyeq-tests][test repository]].
+
+** Mininet
+[[http://mininet.github.com/][Mininet]] is a collection of useful scripts to configure features such
+as network namespaces, containers and [[http://lartc.org/][Linux Traffic Control]], to create
+lightweight virtual networks on a single machine.  I am one of the
+authors of the second release of Mininet, with Bob Lantz, Brandon
+Heller and Nikhil Handigol.
+
+Mininet uses =tc= to configure =htb= inorder to emulate links with of
+some capacity.  So you can use Mininet to configure EyeQ as well.
+Unfortunately, one of (current) Mininet's limitations is that you are
+constrained to resources that one server can offer, especially CPU.
+So you can try EyeQ with few (10) links operating at slower link
+speeds, say 10--100Mb/s.
+
+Scripts to run on Mininet forthcoming.

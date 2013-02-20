@@ -1,0 +1,7 @@
+*.o
+*.ko
+modules.order
+Module.symver
+*.mod.c
+tests/
+*.pyc
