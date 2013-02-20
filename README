@@ -4,9 +4,9 @@ EyeQ: Network Performance Isolation for the Datacenter
 What it is
 ----------
 
-EyeQ is a Linux kernel module to isolate your network from malicious
-misbehaving tenants.  It provides "average" transmit and receive rate
-guarantees (over few ms) to VMs/services on a server.
+EyeQ is a distributed transport layer for your datacenter, which
+provides predictable transmit _and_ receive bandwidth guarantees (over
+few ms) to VMs/services on a server.
 
 Motivation: Why are we doing this?
 ----------------------------------
