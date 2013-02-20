@@ -33,8 +33,12 @@ provides predictable transmit _and_ receive bandwidth guarantees (over
 few ms) to VMs/services on a server, without having to configure CoS
 queues in your network for every VM/service.
 
-For more details, refer to our paper:
-[[http://www.stanford.edu/~jvimal/EyeQ-NSDI13.pdf]]
+For more details, check:
+- A short [[https://raw.github.com/jvimal/eyeq/master/README][README]].
+- Comprehensive system design and evaluation in NSDI 2013:
+  [[http://www.stanford.edu/~jvimal/EyeQ-NSDI13.pdf]]
+- A position [[https://www.usenix.org/system/files/conference/hotcloud12/hotcloud12-final38.pdf][workshop paper]], [[https://www.usenix.org/conference/hotcloud12/eyeq-practical-network-performance-isolation-multi-tenant-cloud][talk and slides]] at HotCloud 2012.
+- [[http://stanford.edu/~jvimal/eyeq/EyeQ-Eurosys-Poster.pdf][Poster at Eurosys 2013]].
 
 * Getting started
 ** Repositories
