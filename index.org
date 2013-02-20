@@ -227,8 +227,8 @@ $ sudo easy_install termcolor
 #+END_SRC
 
    Disable DNS resolution in ssh.  Add "UseDNS no" to
-   /etc/ssh/sshd_config.  Then, =sudo reload ssh= for changes to take
-   effect.
+   =/etc/ssh/sshd_config=.  Then, run =sudo reload ssh= for changes to
+   take effect.
 
 3. Clone the tests repository.
 #+BEGIN_SRC bash
