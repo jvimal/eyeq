@@ -220,8 +220,10 @@ Filter (=tbf=).  You can download it from the ptb repository:
 
 ** Obtaining, Compiling and Installing
 Since =ptb= is a drop-in replacement for =tbf=, you will have to
-remove =tbf= from a running kernel before you can use =ptb= on Linux
-kernels 3.7+.
+remove =tbf= from a running kernel before you can use =ptb=.  The
+module is for Linux kernels 3.7 onwards, as the qdisc API
+datastructures changed a bit.  However, the API change is simple so
+you can easily port it to older kernels.
 
 #+BEGIN_SRC bash
 $ rmmod sch_tbf
