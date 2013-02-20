@@ -210,7 +210,116 @@ One CPU core amounts to about 2--3Gb/s of aggregate switching
 capacity.  So you can try EyeQ safely with few (10) links operating at
 slower link speeds, say 10--100Mb/s.
 
-Scripts to run on Mininet forthcoming.
+The test repository has scripts to create a single-switch topology in
+Mininet.  To test it on Mininet, just do the following steps:
+
+1. Download and install Mininet-2.0 on Ubuntu 12.10+ by following
+   Option 2 on the [[http://mininet.github.com/download/][Mininet Setup Page]].
+
+   Alternatively, you can boot the AMI id =ami-7eab204e= in US-Oregon
+   region in Amazon AWS which has Mininet-2.0 preinstalled.
+
+2. Install paramiko and termcolor dependencies.  On Ubuntu, just run:
+
+#+BEGIN_SRC bash
+$ sudo apt-get install python-paramiko
+$ sudo easy_install termcolor
+#+END_SRC
+
+   Disable DNS resolution in ssh.  Add "UseDNS no" to
+   /etc/ssh/sshd_config.  Then, =sudo reload ssh= for changes to take
+   effect.
+
+3. Clone the tests repository.
+#+BEGIN_SRC bash
+$ cd ~/eyeq
+$ git clone https://github.com/jvimal/eyeq-tests.git tests
+$ cd tests
+#+END_SRC
+
+4. Ensure correct configuration:
+
+   - SSH settings in =config/mininet.py=
+   - Edit =host.py= to import =config.mininet= instead of
+     =config.packard=.
+
+5. Run the Mininet script =sudo python mininet/simple.py= and wait for
+   the CLI.
+
+6. Ensure you can log in from h1 to h2 without passwords.
+
+   - In Mininet, type =xterm h1=
+   - You should be able to type =ssh 10.0.0.2= and log in without any
+     hassles.  If you get "permission denied (public key)" or some
+     such error, please add =/root/.ssh/id_rsa.pub= to
+     =/root/.ssh/authorized_keys=.
+
+7. Create tenants on all hosts.
+
+   - In Mininet, type =xterm h1=
+   - Inside the terminal, type the following, which creates 3 tenants
+     on each of the 3 virtual hosts (h1, h2 and h3): =python tenant.py
+     -m 3 -T 3=
+   - By default, the script will create tenants with IP addresses
+     =11.0.T.M= where T is the tenant ID and M is the machine number
+     (1 for h1, etc.).  Routing tables are set correctly so that
+     packets destined to a tenant pick the corresponding source IP
+     address.
+
+8. Make a few parameter changes so things work at 100Mb/s instead of
+   10Gb/s.
+
+#+BEGIN_SRC bash
+$ cd ~/eyeq/
+
+# Set the interface speed to 100Mb/s
+$ tools/pi.py --set 18,100
+Setting ISO_MAX_TX_RATE = 100
+
+# Set the receive speed to 100Mb/s
+$ tools/pi.py --set 5,100
+Setting ISO_VQ_DRAIN_RATE_MBPS = 100
+
+# Set the tokenbucket timeout value to 1ms
+$ tools/pi.py --set 3,1000000
+Setting ISO_TOKENBUCKET_TIMEOUT_NS = 1000000
+
+# Set the rate metering interval to 1ms
+$ tools/pi.py --set 13,10000
+Setting ISO_VQ_UPDATE_INTERVAL_US = 10000
+#+END_SRC
+
+   There is a small bug in EyeQ because of which the tx and rx
+   capacities of each tenant won't be recomputed after setting a new
+   tx rate.  Until we fix it, here is a workaround, which will trigger
+   a recompute:
+
+#+BEGIN_SRC bash
+num_hosts=3
+for i in `seq 1 $num_hosts`; do
+        echo "dev h$i-eth0 11.0.1.$i weight 1" > /sys/module/perfiso/parameters/set_txc_weight
+        echo "dev h$i-eth0 11.0.1.$i weight 1" > /sys/module/perfiso/parameters/set_vq_weight
+done
+#+END_SRC
+
+9. Check TX fairness.
+
+   - Run iperf servers (=iperf -s=) on all hosts.
+   - Run iperf client from h1:1 (tenant 1) to h2:1 (tenant 1)
+     - h1 terminal: =iperf -c 11.0.1.2 -t 100 -i 1=
+   - Run 4 flows from h1:2 to h3:2
+     - h1 terminal: =iperf -c 11.0.2.3 -t 100 -i 1 -P4=
+
+   You should see each iperf get 50Mb/s.
+
+10. The stats command all work in Mininet as well.
+
+#+BEGIN_SRC bash
+$ tools/pi.py --stats --dev h1-eth0
+#+END_SRC
+
+
+   The above scripts are available in =tests/mininet/100mbps.sh=.
 
 * Rate limiter
 We have also implemented EyeQ's rate limiter, optimized for multiqueue

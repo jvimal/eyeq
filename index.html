@@ -7,7 +7,7 @@ lang="en" xml:lang="en">
 <title>EyeQ Documentation</title>
 <meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
 <meta name="generator" content="Org-mode"/>
-<meta name="generated" content="2013-02-19 19:30:55 PST"/>
+<meta name="generated" content="2013-02-20 00:44:03 PST"/>
 <meta name="author" content="Vimalkumar"/>
 <meta name="description" content=""/>
 <meta name="keywords" content=""/>
@@ -469,8 +469,172 @@ capacity.  So you can try EyeQ safely with few (10) links operating at
 slower link speeds, say 10&ndash;100Mb/s.
 </p>
 <p>
-Scripts to run on Mininet forthcoming.
+The test repository has scripts to create a single-switch topology in
+Mininet.  To test it on Mininet, just do the following steps:
 </p>
+<ol>
+<li>Download and install Mininet-2.0 on Ubuntu 12.10+ by following
+   Option 2 on the <a href="http://mininet.github.com/download/">Mininet Setup Page</a>.
+
+<p>
+   Alternatively, you can boot the AMI id <code>ami-7eab204e</code> in US-Oregon
+   region in Amazon AWS which has Mininet-2.0 preinstalled.
+</p>
+</li>
+<li>Install paramiko and termcolor dependencies.  On Ubuntu, just run:
+
+
+
+
+<pre class="src src-bash">$ sudo apt-get install python-paramiko
+$ sudo easy_install termcolor
+</pre>
+
+
+
+<p>
+   Disable DNS resolution in ssh.  Add "UseDNS no" to
+   /etc/ssh/sshd<sub>config</sub>.  Then, <code>sudo reload ssh</code> for changes to take
+   effect.
+</p>
+</li>
+<li>Clone the tests repository.
+
+
+
+<pre class="src src-bash">$ cd ~/eyeq
+$ git clone https://github.com/jvimal/eyeq-tests.git tests
+$ cd tests
+</pre>
+
+
+
+</li>
+<li>Ensure correct configuration:
+
+<ul>
+<li>SSH settings in <code>config/mininet.py</code>
+</li>
+<li>Edit <code>host.py</code> to import <code>config.mininet</code> instead of
+     <code>config.packard</code>.
+
+</li>
+</ul>
+</li>
+<li>Run the Mininet script <code>sudo python mininet/simple.py</code> and wait for
+   the CLI.
+
+</li>
+<li>Ensure you can log in from h1 to h2 without passwords.
+
+<ul>
+<li>In Mininet, type <code>xterm h1</code>
+</li>
+<li>You should be able to type <code>ssh 10.0.0.2</code> and log in without any
+     hassles.  If you get "permission denied (public key)" or some
+     such error, please add <code>/root/.ssh/id_rsa.pub</code> to
+     <code>/root/.ssh/authorized_keys</code>.
+
+</li>
+</ul>
+</li>
+<li>Create tenants on all hosts.
+
+<ul>
+<li>In Mininet, type <code>xterm h1</code>
+</li>
+<li>Inside the terminal, type the following, which creates 3 tenants
+     on each of the 3 virtual hosts (h1, h2 and h3): <code>python tenant.py      -m 3 -T 3</code>
+</li>
+<li>By default, the script will create tenants with IP addresses
+     <code>11.0.T.M</code> where T is the tenant ID and M is the machine number
+     (1 for h1, etc.).  Routing tables are set correctly so that
+     packets destined to a tenant pick the corresponding source IP
+     address.
+
+</li>
+</ul>
+</li>
+<li>Make a few parameter changes so things work at 100Mb/s instead of
+   10Gb/s.
+
+
+
+
+<pre class="src src-bash">$ cd ~/eyeq/
+
+# Set the interface speed to 100Mb/s
+$ tools/pi.py --set 18,100
+Setting ISO_MAX_TX_RATE = 100
+
+# Set the receive speed to 100Mb/s
+$ tools/pi.py --set 5,100
+Setting ISO_VQ_DRAIN_RATE_MBPS = 100
+
+# Set the tokenbucket timeout value to 1ms
+$ tools/pi.py --set 3,1000000
+Setting ISO_TOKENBUCKET_TIMEOUT_NS = 1000000
+
+# Set the rate metering interval to 1ms
+$ tools/pi.py --set 13,10000
+Setting ISO_VQ_UPDATE_INTERVAL_US = 10000
+</pre>
+
+
+
+<p>
+   There is a small bug in EyeQ because of which the tx and rx
+   capacities of each tenant won't be recomputed after setting a new
+   tx rate.  Until we fix it, here is a workaround, which will trigger
+   a recompute:
+</p>
+
+
+
+<pre class="src src-bash">num_hosts=3
+for i in `seq 1 $num_hosts`; do
+        echo <span style="color: #8F9D6A;">"dev h$i-eth0 11.0.1.$i weight 1"</span> &gt; /sys/module/perfiso/parameters/set_txc_weight
+        echo <span style="color: #8F9D6A;">"dev h$i-eth0 11.0.1.$i weight 1"</span> &gt; /sys/module/perfiso/parameters/set_vq_weight
+done
+</pre>
+
+
+
+</li>
+<li>Check TX fairness.
+
+<ul>
+<li>Run iperf servers (<code>iperf -s</code>) on all hosts.
+</li>
+<li>Run iperf client from h1:1 (tenant 1) to h2:1 (tenant 1)
+<ul>
+<li>h1 terminal: <code>iperf -c 11.0.1.2 -t 100 -i 1</code>
+</li>
+</ul>
+</li>
+<li>Run 4 flows from h1:2 to h3:2
+<ul>
+<li>h1 terminal: <code>iperf -c 11.0.2.3 -t 100 -i 1 -P4</code>
+
+</li>
+</ul>
+</li>
+</ul>
+   You should see each iperf get 50Mb/s.
+
+</li>
+<li>The stats command all work in Mininet as well.
+
+
+
+
+<pre class="src src-bash">$ tools/pi.py --stats --dev h1-eth0
+</pre>
+
+
+</li>
+</ol>
+
 </div>
 </div>
 
@@ -535,7 +699,7 @@ tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
 </div>
 <div id="postamble">
 <p class="author">Author: Vimalkumar (<a href="mailto:j.vimal@gmail.com">j.vimal@gmail.com</a>)</p>
-<p class="date">Date: 2013-02-19 19:30:55 PST</p>
+<p class="date">Date: 2013-02-20 00:44:03 PST</p>
 <p class="creator">Generated by Org version 7.4 with Emacs version 24</p>
 <p class="xhtml-validation"><a href="http://validator.w3.org/check?uri=referer">Validate XHTML 1.0</a></p>
 </div>
