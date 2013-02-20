@@ -47,13 +47,17 @@ to compile EyeQ.  You can find available headers on your system in
 
 #+BEGIN_SRC bash
 $ cd eyeq
+
 $ ls /lib/modules/
 3.2.0-23-generic
+
 $ make
 #+END_SRC
 
-This will produce a kernel module called =perfiso.ko=.  This is the
-performance isolation module.
+This will produce the performance isolation kernel module called
+=perfiso.ko= for your running kernel.  If you want to compile for a
+different kernel, please edit the Makefile and change the version
+number accordingly.
 
 ** Installing
 EyeQ hooks into the transmit path by acting as a queueing discipline.
@@ -82,22 +86,27 @@ $ tc qdisc show
 qdisc htb 1: dev eth0 root
 #+END_SRC
 
-** Configuration
+** Usage
 We provide a separate python configuration tool to work with EyeQ, as
 it does not use the standard =tc= interface.  EyeQ kernel module
 exports a sysfs file which it uses for all configuration mechanisms.
 
 *** Creating tenants
-EyeQ lets you filter tenants using IP addresses.  Filters help
-correctly classify packets to their corresponding tenants on the
-transmit and receive path, for proper resource accounting.  We use the
-source IP on the transmit path, and destination IP on the receive
-path.  Implementing classifiers is easy, but contact me if you need a
-particular classifier in EyeQ.
+EyeQ lets you filter tenants using IP addresses.  Filters are needed
+to correctly classify packets to their corresponding groups for proper
+resource accounting.  We use the source IP on the transmit path, and
+destination IP on the receive path.  Implementing classifiers is easy,
+but contact me if you need a particular classifier in EyeQ and I can
+make it available.
 
 Each tenant has a classifier and a "weight" that denotes the relative
-importance of one tenant over another.  For example, to create a
-tenant with IP address 10.0.1.1, do:
+importance of one tenant over another.  If you have two tenants A and
+B with weights 1 and 2 respectively, then tenant B will get twice the
+bandwidth of A whenever there is contention for bandwidth
+(transmit/receive).  It is possible to set unequal weights for
+transmit and receive by directly writing to EyeQ's sysfs files.
+
+For example, to create a tenant with IP address 10.0.1.1, do:
 
 #+BEGIN_SRC bash
 $ tools/pi.py --create 10.0.1.1 --dev eth0
@@ -111,6 +120,11 @@ listing TXCs
 	10.0.1.1 weight 1 assoc vq 10.0.1.1
 listing VQs
 	10.0.1.1 weight 1
+#+END_SRC
+
+To set a different weight for tenant 10.0.1.1 on the receive path, do:
+#+BEGIN_SRC bash
+$ echo dev eth0 10.0.1.1 weight 10 > /sys/module/perfiso/parameters
 #+END_SRC
 
 *** Removing tenants
@@ -134,38 +148,48 @@ $ tools/pi.py --get
 
 Stay tuned for a default set of parameters for 1GbE networks.
 
-** Rate limiter
-We have also implemented EyeQ's rate limiter, optimized for multiqueue
-networking devices, as a drop-in replacement to Linux's Token Bucket
-Filter (=tbf=).  You can download it from the ptb repository:
-[[https://github.com/jvimal/ptb]].
-
-*** Obtaining, Compiling and Installing
-Since =ptb= is a drop-in replacement for =tbf=, you will have to
-remove =tbf= from a running kernel before you can use =ptb= on Linux
-kernels 3.7+.
+*** Saving and restoring configurations
+You can save the config as a json file which you can restore later.
 
 #+BEGIN_SRC bash
-$ rmmod sch_tbf
-$ git clone https://github.com/jvimal/ptb.git
-$ cd ptb
-$ make
-$ insmod ./sch_ptb.ko
+$ tools/pi.py --save /tmp/config
+$ cat /tmp/config
+{
+    "params": {
+        "ISO_RFAIR_INCREASE_INTERVAL_US": "120",
+        "IsoAutoGenerateFeedback": "1",
+        "ISO_TOKENBUCKET_TIMEOUT_NS": "50000",
+...
+    },
+    "config": {
+        "eth0": {
+            "vqs": [
+            ],
+            "txcs": [
+                {
+...
+                }
+            ]
+        }
+    }
+}
 #+END_SRC
 
-There is a sample script with default options so you can test PTB out.
+*** Unloading EyeQ
+You can unload EyeQ by first removing each qdisc you created on
+network devices.
 
 #+BEGIN_SRC bash
-$ cat tc.sh
-#!/bin/bash
-
-dev=eth2
-tc qdisc del dev $dev root
-rmmod sch_ptb
-make
-insmod ./sch_ptb.ko
-tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
+$ tc qdisc del dev eth0 root
 #+END_SRC
+
+You can restore an earlier configuration by running the following as
+root:
+
+#+BEGIN_SRC bash
+$ tools/pi.py --load /tmp/config
+#+END_SRC
+
 
 * Trying things out
 The scripts used in all our experiments in the NSDI paper are
@@ -179,10 +203,46 @@ authors of the second release of Mininet, with Bob Lantz, Brandon
 Heller and Nikhil Handigol.
 
 Mininet uses =tc= to configure =htb= inorder to emulate links with of
-some capacity.  So you can use Mininet to configure EyeQ as well.
-Unfortunately, one of (current) Mininet's limitations is that you are
-constrained to resources that one server can offer, especially CPU.
-So you can try EyeQ with few (10) links operating at slower link
-speeds, say 10--100Mb/s.
+some capacity.  So you can use Mininet to test EyeQ as well.
+Unfortunately, one of Mininet's limitations (as of 2.0) is that you
+are constrained to resources that one server can offer especially CPU.
+One CPU core amounts to about 2--3Gb/s of aggregate switching
+capacity.  So you can try EyeQ safely with few (10) links operating at
+slower link speeds, say 10--100Mb/s.
 
 Scripts to run on Mininet forthcoming.
+
+* Rate limiter
+We have also implemented EyeQ's rate limiter, optimized for multiqueue
+networking devices, as a drop-in replacement to Linux's Token Bucket
+Filter (=tbf=).  You can download it from the ptb repository:
+[[https://github.com/jvimal/ptb]].
+
+** Obtaining, Compiling and Installing
+Since =ptb= is a drop-in replacement for =tbf=, you will have to
+remove =tbf= from a running kernel before you can use =ptb= on Linux
+kernels 3.7+.
+
+#+BEGIN_SRC bash
+$ rmmod sch_tbf
+$ git clone https://github.com/jvimal/ptb.git
+$ cd ptb
+$ make
+$ insmod ./sch_ptb.ko
+#+END_SRC
+
+There is a sample script with default options so you can test PTB out.
+Just like Linux's default =mq= or =mqprio= qdisc, =ptb= must be the
+root qdisc.  It cannot be the child of any other qdisc.
+
+#+BEGIN_SRC bash
+$ cat tc.sh
+#!/bin/bash
+
+dev=eth2
+tc qdisc del dev $dev root
+rmmod sch_ptb
+make
+insmod ./sch_ptb.ko
+tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
+#+END_SRC

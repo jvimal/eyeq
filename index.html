@@ -7,7 +7,7 @@ lang="en" xml:lang="en">
 <title>EyeQ Documentation</title>
 <meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
 <meta name="generator" content="Org-mode"/>
-<meta name="generated" content="2013-02-19 19:01:43 PST"/>
+<meta name="generated" content="2013-02-19 19:25:59 PST"/>
 <meta name="author" content="Vimalkumar"/>
 <meta name="description" content=""/>
 <meta name="keywords" content=""/>
@@ -103,22 +103,24 @@ h3, h4, h5, h6 {border-bottom: 1px solid #ccc; color: #0B108C; }</style>
 <li><a href="#sec-2_2">2.2 Downloading </a></li>
 <li><a href="#sec-2_3">2.3 Compiling </a></li>
 <li><a href="#sec-2_4">2.4 Installing </a></li>
-<li><a href="#sec-2_5">2.5 Configuration </a>
+<li><a href="#sec-2_5">2.5 Usage </a>
 <ul>
 <li><a href="#sec-2_5_1">2.5.1 Creating tenants </a></li>
 <li><a href="#sec-2_5_2">2.5.2 Removing tenants </a></li>
 <li><a href="#sec-2_5_3">2.5.3 Parameters </a></li>
-</ul>
-</li>
-<li><a href="#sec-2_6">2.6 Rate limiter </a>
-<ul>
-<li><a href="#sec-2_6_1">2.6.1 Obtaining, Compiling and Installing </a></li>
+<li><a href="#sec-2_5_4">2.5.4 Saving and restoring configurations </a></li>
+<li><a href="#sec-2_5_5">2.5.5 Unloading EyeQ </a></li>
 </ul></li>
 </ul>
 </li>
 <li><a href="#sec-3">3 Trying things out </a>
 <ul>
 <li><a href="#sec-3_1">3.1 Mininet </a></li>
+</ul>
+</li>
+<li><a href="#sec-4">4 Rate limiter </a>
+<ul>
+<li><a href="#sec-4_1">4.1 Obtaining, Compiling and Installing </a></li>
 </ul>
 </li>
 </ul>
@@ -198,16 +200,20 @@ to compile EyeQ.  You can find available headers on your system in
 
 
 <pre class="src src-bash">$ cd eyeq
+
 $ ls /lib/modules/
 3.2.0-23-generic
+
 $ make
 </pre>
 
 
 
 <p>
-This will produce a kernel module called <code>perfiso.ko</code>.  This is the
-performance isolation module.
+This will produce the performance isolation kernel module called
+<code>perfiso.ko</code> for your running kernel.  If you want to compile for a
+different kernel, please edit the Makefile and change the version
+number accordingly.
 </p>
 </div>
 
@@ -253,7 +259,7 @@ qdisc htb 1: dev eth0 root
 </div>
 
 <div id="outline-container-2_5" class="outline-3">
-<h3 id="sec-2_5"><span class="section-number-3">2.5</span> Configuration </h3>
+<h3 id="sec-2_5"><span class="section-number-3">2.5</span> Usage </h3>
 <div class="outline-text-3" id="text-2_5">
 
 <p>We provide a separate python configuration tool to work with EyeQ, as
@@ -267,17 +273,23 @@ exports a sysfs file which it uses for all configuration mechanisms.
 <h4 id="sec-2_5_1"><span class="section-number-4">2.5.1</span> Creating tenants </h4>
 <div class="outline-text-4" id="text-2_5_1">
 
-<p>EyeQ lets you filter tenants using IP addresses.  Filters help
-correctly classify packets to their corresponding tenants on the
-transmit and receive path, for proper resource accounting.  We use the
-source IP on the transmit path, and destination IP on the receive
-path.  Implementing classifiers is easy, but contact me if you need a
-particular classifier in EyeQ.
+<p>EyeQ lets you filter tenants using IP addresses.  Filters are needed
+to correctly classify packets to their corresponding groups for proper
+resource accounting.  We use the source IP on the transmit path, and
+destination IP on the receive path.  Implementing classifiers is easy,
+but contact me if you need a particular classifier in EyeQ and I can
+make it available.
 </p>
 <p>
 Each tenant has a classifier and a "weight" that denotes the relative
-importance of one tenant over another.  For example, to create a
-tenant with IP address 10.0.1.1, do:
+importance of one tenant over another.  If you have two tenants A and
+B with weights 1 and 2 respectively, then tenant B will get twice the
+bandwidth of A whenever there is contention for bandwidth
+(transmit/receive).  It is possible to set unequal weights for
+transmit and receive by directly writing to EyeQ's sysfs files.
+</p>
+<p>
+For example, to create a tenant with IP address 10.0.1.1, do:
 </p>
 
 
@@ -293,6 +305,16 @@ listing TXCs
         10.0.1.1 weight 1 assoc vq 10.0.1.1
 listing VQs
         10.0.1.1 weight 1
+</pre>
+
+
+
+<p>
+To set a different weight for tenant 10.0.1.1 on the receive path, do:
+</p>
+
+
+<pre class="src src-bash">$ echo dev eth0 10.0.1.1 weight 10 &gt; /sys/module/perfiso/parameters
 </pre>
 
 
@@ -342,58 +364,72 @@ tuned for 10GbE.
 Stay tuned for a default set of parameters for 1GbE networks.
 </p>
 </div>
-</div>
 
 </div>
 
-<div id="outline-container-2_6" class="outline-3">
-<h3 id="sec-2_6"><span class="section-number-3">2.6</span> Rate limiter </h3>
-<div class="outline-text-3" id="text-2_6">
+<div id="outline-container-2_5_4" class="outline-4">
+<h4 id="sec-2_5_4"><span class="section-number-4">2.5.4</span> Saving and restoring configurations </h4>
+<div class="outline-text-4" id="text-2_5_4">
 
-<p>We have also implemented EyeQ's rate limiter, optimized for multiqueue
-networking devices, as a drop-in replacement to Linux's Token Bucket
-Filter (<code>tbf</code>).  You can download it from the ptb repository:
-<a href="https://github.com/jvimal/ptb">https://github.com/jvimal/ptb</a>.
-</p>
-
-</div>
-
-<div id="outline-container-2_6_1" class="outline-4">
-<h4 id="sec-2_6_1"><span class="section-number-4">2.6.1</span> Obtaining, Compiling and Installing </h4>
-<div class="outline-text-4" id="text-2_6_1">
-
-<p>Since <code>ptb</code> is a drop-in replacement for <code>tbf</code>, you will have to
-remove <code>tbf</code> from a running kernel before you can use <code>ptb</code> on Linux
-kernels 3.7+.
+<p>You can save the config as a json file which you can restore later.
 </p>
 
 
 
-<pre class="src src-bash">$ rmmod sch_tbf
-$ git clone https://github.com/jvimal/ptb.git
-$ cd ptb
-$ make
-$ insmod ./sch_ptb.ko
+<pre class="src src-bash">$ tools/pi.py --save /tmp/config
+$ cat /tmp/config
+{
+    <span style="color: #8F9D6A;">"params"</span>: {
+        <span style="color: #8F9D6A;">"ISO_RFAIR_INCREASE_INTERVAL_US"</span>: <span style="color: #8F9D6A;">"120"</span>,
+        <span style="color: #8F9D6A;">"IsoAutoGenerateFeedback"</span>: <span style="color: #8F9D6A;">"1"</span>,
+        <span style="color: #8F9D6A;">"ISO_TOKENBUCKET_TIMEOUT_NS"</span>: <span style="color: #8F9D6A;">"50000"</span>,
+...
+    },
+    <span style="color: #8F9D6A;">"config"</span>: {
+        <span style="color: #8F9D6A;">"eth0"</span>: {
+            <span style="color: #8F9D6A;">"vqs"</span>: [
+            ],
+            <span style="color: #8F9D6A;">"txcs"</span>: [
+                {
+...
+                }
+            ]
+        }
+    }
+}
+</pre>
+
+
+
+</div>
+
+</div>
+
+<div id="outline-container-2_5_5" class="outline-4">
+<h4 id="sec-2_5_5"><span class="section-number-4">2.5.5</span> Unloading EyeQ </h4>
+<div class="outline-text-4" id="text-2_5_5">
+
+<p>You can unload EyeQ by first removing each qdisc you created on
+network devices.
+</p>
+
+
+
+<pre class="src src-bash">$ tc qdisc del dev eth0 root
 </pre>
 
 
 
 <p>
-There is a sample script with default options so you can test PTB out.
+You can restore an earlier configuration by running the following as
+root:
 </p>
 
 
 
-<pre class="src src-bash">$ cat tc.sh
-#!/bin/bash
-
-dev=eth2
-tc qdisc del dev $dev root
-rmmod sch_ptb
-make
-insmod ./sch_ptb.ko
-tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
+<pre class="src src-bash">$ tools/pi.py --load /tmp/config
 </pre>
+
 
 
 
@@ -425,20 +461,79 @@ Heller and Nikhil Handigol.
 </p>
 <p>
 Mininet uses <code>tc</code> to configure <code>htb</code> inorder to emulate links with of
-some capacity.  So you can use Mininet to configure EyeQ as well.
-Unfortunately, one of (current) Mininet's limitations is that you are
-constrained to resources that one server can offer, especially CPU.
-So you can try EyeQ with few (10) links operating at slower link
-speeds, say 10&ndash;100Mb/s.
+some capacity.  So you can use Mininet to test EyeQ as well.
+Unfortunately, one of Mininet's limitations (as of 2.0) is that you
+are constrained to resources that one server can offer especially CPU.
+One CPU core amounts to about 2&ndash;3Gb/s of aggregate switching
+capacity.  So you can try EyeQ safely with few (10) links operating at
+slower link speeds, say 10&ndash;100Mb/s.
 </p>
 <p>
 Scripts to run on Mininet forthcoming.
-</p></div>
+</p>
+</div>
+</div>
+
+</div>
+
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Rate limiter </h2>
+<div class="outline-text-2" id="text-4">
+
+<p>We have also implemented EyeQ's rate limiter, optimized for multiqueue
+networking devices, as a drop-in replacement to Linux's Token Bucket
+Filter (<code>tbf</code>).  You can download it from the ptb repository:
+<a href="https://github.com/jvimal/ptb">https://github.com/jvimal/ptb</a>.
+</p>
+
+</div>
+
+<div id="outline-container-4_1" class="outline-3">
+<h3 id="sec-4_1"><span class="section-number-3">4.1</span> Obtaining, Compiling and Installing </h3>
+<div class="outline-text-3" id="text-4_1">
+
+<p>Since <code>ptb</code> is a drop-in replacement for <code>tbf</code>, you will have to
+remove <code>tbf</code> from a running kernel before you can use <code>ptb</code> on Linux
+kernels 3.7+.
+</p>
+
+
+
+<pre class="src src-bash">$ rmmod sch_tbf
+$ git clone https://github.com/jvimal/ptb.git
+$ cd ptb
+$ make
+$ insmod ./sch_ptb.ko
+</pre>
+
+
+
+<p>
+There is a sample script with default options so you can test PTB out.
+Just like Linux's default <code>mq</code> or <code>mqprio</code> qdisc, <code>ptb</code> must be the
+root qdisc.  It cannot be the child of any other qdisc.
+</p>
+
+
+
+<pre class="src src-bash">$ cat tc.sh
+#!/bin/bash
+
+dev=eth2
+tc qdisc del dev $dev root
+rmmod sch_ptb
+make
+insmod ./sch_ptb.ko
+tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
+</pre>
+
+
+</div>
 </div>
 </div>
 <div id="postamble">
 <p class="author">Author: Vimalkumar (<a href="mailto:j.vimal@gmail.com">j.vimal@gmail.com</a>)</p>
-<p class="date">Date: 2013-02-19 19:01:43 PST</p>
+<p class="date">Date: 2013-02-19 19:25:59 PST</p>
 <p class="creator">Generated by Org version 7.4 with Emacs version 24</p>
 <p class="xhtml-validation"><a href="http://validator.w3.org/check?uri=referer">Validate XHTML 1.0</a></p>
 </div>
