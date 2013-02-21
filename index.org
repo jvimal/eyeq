@@ -146,6 +146,12 @@ To set a different weight for tenant 10.0.1.1 on the receive path, do:
 $ echo dev eth0 10.0.1.1 weight 10 > /sys/module/perfiso/parameters
 #+END_SRC
 
+*Note*: =--create= option assumes that your network/kernel already
+ knows how to route packets; the tool does not do them on your behalf.
+ There is a sample script =tests/tenant.py= that automatically creates
+ IP addresses and routing tables in a consistent fashion.  Check the
+ [[Mininet][Mininet section below]].
+
 *** Removing tenants
 #+BEGIN_SRC bash
 $ tools/pi.py --delete 10.0.1.1 --dev eth0
@@ -214,6 +220,7 @@ $ tools/pi.py --load /tmp/config
 The scripts used in all our experiments in the NSDI paper are
 available online in the [[https://github.com/jvimal/eyeq-tests][test repository]].
 
+# <<Mininet>>
 ** Mininet
 [[http://mininet.github.com/][Mininet]] is a collection of useful scripts to configure features such
 as network namespaces, containers and [[http://lartc.org/][Linux Traffic Control]], to create
@@ -313,12 +320,13 @@ Setting ISO_VQ_UPDATE_INTERVAL_US = 10000
    tx rate.  Until we fix it, here is a workaround, which will trigger
    a recompute:
 
+   If you write to the sysfs files to change =ISO_MAX_TX_RATE= and
+   =ISO_VQ_DRAIN_RATE_MBPS= directly, you need to force EyeQ to
+   recompute tenant rx and tx rate guarantees.  You can do it by
+   running:
+
 #+BEGIN_SRC bash
-num_hosts=3
-for i in `seq 1 $num_hosts`; do
-        echo "dev h$i-eth0 11.0.1.$i weight 1" > /sys/module/perfiso/parameters/set_txc_weight
-        echo "dev h$i-eth0 11.0.1.$i weight 1" > /sys/module/perfiso/parameters/set_vq_weight
-done
+$ echo dev eth0 > /sys/module/perfiso/parameters/recompute_dev
 #+END_SRC
 
 9. Check TX fairness.
