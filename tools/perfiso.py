@@ -310,16 +310,19 @@ def stats(filterdev=None):
     vq = None
     rl = None
     rl_parse = False
+    vq_dev = None
+    dev_by_name = dict()
     devs = []
     global ISO_INSMOD, ISO_CREATED
     if not os.path.exists(ISO_PROCFILE):
-        die("Module not loaded")
+        die("EyeQ module not loaded")
 
     ISO_INSMOD = True
     for line in open(ISO_PROCFILE).readlines():
         if line.startswith('tx->dev'):
             if dev is not None and (filterdev is None or filterdev == dev.dev):
                 devs.append(dev)
+                dev_by_name[dev.dev] = dev
             devname = line.split(',')[0].split(' ')[1]
             ISO_CREATED[devname] = True
             dev = Dev(dev=devname, txcs=[], vqs=[])
@@ -345,6 +348,8 @@ def stats(filterdev=None):
             rate = data[5]
             rl = RL(dst=dst, rate=rate)
             txc.rls.append(rl)
+        if line.startswith('vqs'):
+            vq_dev = line.split(' ')[1]
         if line.startswith('vq class'):
             data = re_spaces.split(line)
             klass = data[2]
@@ -352,7 +357,12 @@ def stats(filterdev=None):
             rx_rate = data[8]
             fb_rate = data[10]
             weight = data[14]
-            dev.vqs.append(Vq(klass=klass, rate=rate, rx_rate=rx_rate, fb_rate=fb_rate, weight=weight))
+            whichdev = dev_by_name.get(vq_dev, None)
+            vq = Vq(klass=klass, rate=rate, rx_rate=rx_rate, fb_rate=fb_rate, weight=weight)
+            if whichdev is None:
+                dev.vqs.append(vq)
+            else:
+                whichdev.vqs.append(vq)
     if dev is not None and (filterdev is None or filterdev == dev.dev):
         devs.append(dev)
     return devs
