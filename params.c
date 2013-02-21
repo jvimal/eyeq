@@ -190,7 +190,7 @@ static int iso_sys_create_txc(const char *val, struct kernel_param *kp) {
 }
 
 static int iso_sys_noget(const char *val, struct kernel_param *kp) {
-  return 0;
+	return 0;
 }
 
 module_param_call(create_txc, iso_sys_create_txc, iso_sys_noget, NULL, S_IWUSR);
@@ -547,7 +547,6 @@ out:
 
 module_param_call(delete_vq, iso_sys_delete_vq, iso_sys_noget, NULL, S_IWUSR);
 
-
 #ifdef QDISC
 int iso_enabled(struct net_device *dev) {
 	struct Qdisc *qdisc = dev->qdisc;
@@ -560,6 +559,51 @@ int iso_enabled(struct net_device *dev) {
 	return dev == iso_netdev;
 }
 #endif
+
+static int iso_sys_recompute_dev(const char *val, struct kernel_param *kp) {
+	char buff[128];
+	char devname[128];
+	int len, ret, n;
+	struct iso_tx_context *txctx;
+	struct iso_rx_context *rxctx;
+	struct net_device *dev = NULL;
+
+	len = min(127, (int)strlen(val));
+	strncpy(buff, val, len);
+	buff[len] = '\0';
+	ret = 0;
+
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
+	n = sscanf(buff, "dev %s", devname);
+
+	if (n != 1) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev = iso_search_netdev(devname);
+	if (dev && iso_enabled(dev)) {
+		txctx = iso_txctx_dev(dev);
+		rxctx = iso_rxctx_dev(dev);
+
+		iso_txc_recompute_rates(txctx);
+		iso_vq_calculate_rates(rxctx);
+	} else {
+		ret = -EINVAL;
+	}
+
+	up(&config_mutex);
+
+out:
+	if(ret)
+		return -EINVAL;
+
+	return 0;
+}
+
+module_param_call(recompute_dev, iso_sys_recompute_dev, iso_sys_noget, NULL, S_IWUSR);
 
 /* Local Variables: */
 /* indent-tabs-mode:t */

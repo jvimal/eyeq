@@ -194,11 +194,18 @@ class VQ:
 def get(args):
     print params.__str__()
 
+def recompute_dev(dev):
+    c = "echo dev %s > %s/recompute_dev" % (dev, ISO_SYSFS)
+    return cmd(c)
+
 def set(args):
     try:
         if args.value is None and ',' in args.set:
             args.set, args.value = args.set.split(',')
         params.set(args.set, args.value)
+        # Recompute the tx and rx rates
+        for dev in stats():
+            recompute_dev(dev.dev)
     except Exception, e:
         die("error setting %s to %s.  (are you root?)" % (args.set, args.value))
 
