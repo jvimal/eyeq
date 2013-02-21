@@ -333,6 +333,8 @@ $ tools/pi.py --set 13,10000
 Setting ISO_VQ_UPDATE_INTERVAL_US = 10000
 #+END_SRC
 
+   The above scripts are available in =tests/mininet/100mbps.sh=.
+
    If you write to the sysfs files directly to change
    =ISO_MAX_TX_RATE= and =ISO_VQ_DRAIN_RATE_MBPS=, you need to force
    EyeQ to recompute tenant rx and tx rate guarantees.  You can do it
@@ -358,8 +360,6 @@ $ echo dev eth0 > /sys/module/perfiso/parameters/recompute_dev
 $ tools/pi.py --stats --dev h1-eth0
 #+END_SRC
 
-
-   The above scripts are available in =tests/mininet/100mbps.sh=.
 
 * Rate limiter
 We have also implemented EyeQ's rate limiter, optimized for multiqueue
