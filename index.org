@@ -290,6 +290,9 @@ $ cd tests
 
 7. Create tenants on all hosts.
 
+   By default, the Mininet script does not create tenants.  You can
+   create tenants by doing the following:
+
    - In Mininet, type =xterm h1=
    - Inside the terminal, type the following, which creates 3 tenants
      on each of the 3 virtual hosts (h1, h2 and h3): =python tenant.py
@@ -299,6 +302,13 @@ $ cd tests
      (1 for h1, etc.).  Routing tables are set correctly so that
      packets destined to a tenant pick the corresponding source IP
      address.
+
+   Alternatively, once you've set up ssh successfully, you can create
+   tenants on all machines simply by passing =--conf= as shown below:
+
+#+BEGIN_SRC bash
+$ python mininet/simple.py --conf --num-hosts 3 --num-tenants 3
+#+END_SRC
 
 8. Make a few parameter changes so things work at 100Mb/s instead of
    10Gb/s.
