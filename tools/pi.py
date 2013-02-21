@@ -139,9 +139,11 @@ elif args.list:
         for vq in dev.vqs:
             print INDENT, vq.klass, "weight", vq.weight
 elif args.stats:
-    stats = perfiso.stats(args.dev)
+    stats = perfiso.stats()
     INDENT = '\t'
     for dev in stats:
+        if args.dev is not None and dev.dev != args.dev:
+            continue
         print dev
         for txc in dev.txcs:
             print INDENT, txc
