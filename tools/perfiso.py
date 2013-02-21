@@ -311,10 +311,10 @@ def stats(filterdev=None):
     ISO_INSMOD = True
     for line in open(ISO_PROCFILE).readlines():
         if line.startswith('tx->dev'):
-            ISO_CREATED[dev] = True
             if dev is not None and (filterdev is None or filterdev == dev.dev):
                 devs.append(dev)
             devname = line.split(',')[0].split(' ')[1]
+            ISO_CREATED[devname] = True
             dev = Dev(dev=devname, txcs=[], vqs=[])
             rl_parse = False
         if line.startswith('txc class'):
@@ -353,3 +353,19 @@ def stats(filterdev=None):
 params = Parameters()
 txc = TxClass()
 vqs = VQ()
+
+def set_onegbe_params():
+    vals = {
+        # 100us rate limiting granularity
+        "ISO_TOKENBUCKET_TIMEOUT_NS": 100 * 1000,
+        # The bandwidth headroom can be smaller at 1GbE
+        "ISO_VQ_DRAIN_RATE_MBPS": 920,
+        # 980Mb/s is the maximum wire rate due to inter-packet gap and
+        # framing overheads.
+        "ISO_MAX_TX_RATE": 980,
+        "ISO_RFAIR_INITIAL": 500,
+        "ISO_RL_UPDATE_INTERVAL_US": 50,
+        }
+    for parm, val in vals.iteritems():
+        params.set(parm, val)
+    return

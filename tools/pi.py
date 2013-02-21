@@ -57,11 +57,11 @@ parser.add_argument('--set-rps',
                     default=None)
 
 parser.add_argument("--create-tenant", '-c',
-                    help="Create tenant.  Pass tenant class id (IP address/skb->mark).",
+                    help="Create tenant.  Pass tenant class id (IP address).",
                     default=None)
 
 parser.add_argument("--delete-tenant", '-d',
-                    help="Delete tenant.  Pass tenant class id (IP address/skb->mark).",
+                    help="Delete tenant.  Pass tenant class id (IP address).",
                     default=None)
 
 parser.add_argument("--list", '-l',
@@ -75,6 +75,10 @@ parser.add_argument("--stats",
 parser.add_argument('--weight', '-w',
                     help="Relative weight of tenant.",
                     default=1)
+
+parser.add_argument("--one-gbe",
+                    help="Default parameters for 1GbE.",
+                    action="store_true")
 
 args = parser.parse_args()
 
@@ -91,6 +95,7 @@ def is_netdev(dev):
             return True
     return False
 
+perfiso.stats()
 if args.get:
     perfiso.get(args)
 elif args.set:
@@ -144,5 +149,7 @@ elif args.stats:
                 print INDENT*2, rl
         for vq in dev.vqs:
             print INDENT, vq
+elif args.one_gbe:
+    perfiso.set_onegbe_params()
 else:
     parser.print_help()
