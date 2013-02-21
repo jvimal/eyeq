@@ -333,15 +333,10 @@ $ tools/pi.py --set 13,10000
 Setting ISO_VQ_UPDATE_INTERVAL_US = 10000
 #+END_SRC
 
-   There is a small bug in EyeQ because of which the tx and rx
-   capacities of each tenant won't be recomputed after setting a new
-   tx rate.  Until we fix it, here is a workaround, which will trigger
-   a recompute:
-
-   If you write to the sysfs files to change =ISO_MAX_TX_RATE= and
-   =ISO_VQ_DRAIN_RATE_MBPS= directly, you need to force EyeQ to
-   recompute tenant rx and tx rate guarantees.  You can do it by
-   running:
+   If you write to the sysfs files directly to change
+   =ISO_MAX_TX_RATE= and =ISO_VQ_DRAIN_RATE_MBPS=, you need to force
+   EyeQ to recompute tenant rx and tx rate guarantees.  You can do it
+   by running:
 
 #+BEGIN_SRC bash
 $ echo dev eth0 > /sys/module/perfiso/parameters/recompute_dev
