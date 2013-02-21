@@ -171,7 +171,15 @@ $ tools/pi.py --get
 ... a lot more.
 #+END_SRC
 
-Stay tuned for a default set of parameters for 1GbE networks.
+The userspace tool has default parameters for 1GbE networks as well.
+#+BEGIN_SRC bash
+$ tools/pi.py --one-gbe
+Setting ISO_TOKENBUCKET_TIMEOUT_NS = 100000
+Setting ISO_VQ_DRAIN_RATE_MBPS = 920
+Setting ISO_RL_UPDATE_INTERVAL_US = 50
+Setting ISO_RFAIR_INITIAL = 500
+Setting ISO_MAX_TX_RATE = 980
+#+END_SRC
 
 *** Saving and restoring configurations
 You can save the config as a json file which you can restore later.
