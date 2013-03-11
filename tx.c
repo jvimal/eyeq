@@ -217,6 +217,9 @@ enum iso_verdict iso_tx(struct sk_buff *skb, const struct net_device *out, struc
 
 	rl = state->rl;
 
+	/* Enable ECT: this packet is guaranteed to be IP */
+	iso_enable_ecn(skb);
+
 	/* Enqueue in RL */
 	verdict = iso_rl_enqueue(rl, skb, cpu);
 	q = per_cpu_ptr(rl->queue, cpu);

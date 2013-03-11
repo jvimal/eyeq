@@ -84,6 +84,9 @@ enum iso_verdict iso_rx(struct sk_buff *skb, const struct net_device *in, struct
 
 		if(unlikely(iso_is_generated_feedback(skb)))
 			verdict = ISO_VERDICT_DROP;
+
+		/* Clear the ECN mark before sending to stack */
+		iso_clear_ecn(skb);
 	}
 
 	stats = per_cpu_ptr(vq->percpu_stats, smp_processor_id());

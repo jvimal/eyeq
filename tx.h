@@ -167,6 +167,18 @@ static inline void iso_txc_recompute_rates(struct iso_tx_context *context) {
 	spin_unlock_irqrestore(&context->txc_spinlock, flags);
 }
 
+static inline void iso_enable_ecn(struct sk_buff *skb)
+{
+	struct iphdr *iph = ip_hdr(skb);
+	ipv4_change_dsfield(iph, 0xff, iph->tos | INET_ECN_ECT_0);
+}
+
+static inline void iso_clear_ecn(struct sk_buff *skb)
+{
+	struct iphdr *iph = ip_hdr(skb);
+	ipv4_change_dsfield(iph, 0xff, iph->tos & ~0x3);
+}
+
 #endif /* __TX_H__ */
 
 /* Local Variables: */
