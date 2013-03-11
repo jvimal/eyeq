@@ -289,7 +289,7 @@ def stats(filterdev=None):
             return self.getdict(keys)
     class Vq(Data):
         def __str__(self):
-            keys = ['klass', 'rate', 'rx_rate', 'fb_rate']
+            keys = ['klass', 'rate', 'rx_rate', 'fb_rate', 'alpha']
             return Data.str(self, 'VQ', keys)
         def get(self):
             keys = ['klass', 'weight']
@@ -356,9 +356,11 @@ def stats(filterdev=None):
             rate = data[6]
             rx_rate = data[8]
             fb_rate = data[10]
-            weight = data[14]
+            alpha = data[12]
+            weight = data[16]
             whichdev = dev_by_name.get(vq_dev, None)
-            vq = Vq(klass=klass, rate=rate, rx_rate=rx_rate, fb_rate=fb_rate, weight=weight)
+            vq = Vq(klass=klass, rate=rate, rx_rate=rx_rate,
+                    fb_rate=fb_rate, alpha=alpha, weight=weight)
             if whichdev is None:
                 dev.vqs.append(vq)
             else:
