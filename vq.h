@@ -25,13 +25,25 @@
 #include "tx.h"
 #include "rx.h"
 
+/*
+ * We represent alpha, the fraction of ECN marked packets, as
+ * numerator/denominator. We ensure that @numerator is an integer in
+ * the range [0, 1 << ECN_ALPHA_FRAC_SHIFT].
+ */
+#define ECN_ALPHA_FRAC_SHIFT (10)
+#define MUL15(x) (((x) << 4) - (x))
+#define DIV16(x) ((x) >> 4)
+#define EWMA_G16(old, new) DIV16(MUL15(old) + new)
+
 struct iso_vq_stats {
 	u64 bytes_queued;
 	u64 network_marked;
+	u64 rx_packets;
 	u64 rx_bytes;
 
 	ktime_t last_feedback_gen_time;
 	u32 rx_since_last_feedback;
+	u32 rx_marked_since_last_feedback;
 };
 
 struct iso_vq {
@@ -46,6 +58,8 @@ struct iso_vq {
 	u64 rx_rate;
 	u64 last_rx_bytes;
 	u64 weight;
+	/* Fraction of marked packets = alpha/1024. */
+	u32 alpha;
 
 	ktime_t last_update_time, last_borrow_time;
 

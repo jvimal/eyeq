@@ -81,6 +81,7 @@ int iso_vq_init(struct iso_vq *vq) {
 	vq->last_rx_bytes = 0;
 	vq->rx_rate = 0;
 	vq->weight = 1;
+	vq->alpha = 0;
 	vq->last_update_time = vq->last_borrow_time = ktime_get();
 
 	vq->percpu_stats = alloc_percpu(struct iso_vq_stats);
@@ -92,7 +93,9 @@ int iso_vq_init(struct iso_vq *vq) {
 		stats->bytes_queued = 0;
 		stats->network_marked = 0;
 		stats->rx_bytes = 0;
+		stats->rx_packets = 0;
 		stats->rx_since_last_feedback = 0;
+		stats->rx_marked_since_last_feedback = 0;
 	}
 
 	spin_lock_init(&vq->spinlock);
@@ -147,10 +150,15 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 
 	eth = eth_hdr(pkt);
 
+	stats->rx_since_last_feedback++;
+	stats->rx_packets++;
+
 	if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
 		iph = ip_hdr(pkt);
-		if((iph->tos & 0x3) == 0x3)
+		if((iph->tos & 0x3) == 0x3) {
 			stats->network_marked++;
+			stats->rx_marked_since_last_feedback++;
+		}
 	}
 
 	now = ktime_get();
@@ -219,6 +227,7 @@ inline void iso_vq_global_tick(struct iso_rx_context *rxctx) {
 void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	u64 can_drain, max_drain, min_borrow;
 	u64 rx_bytes, dt2;
+	u32 rx_pkts, rx_marked;
 	int i, factor;
 	ktime_t now = ktime_get();
 	struct iso_rx_context *rxctx = vq->rxctx;
@@ -232,15 +241,30 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	rx_bytes = 0;
 	factor = 0;
 
+	rx_pkts = 0;
+	rx_marked = 0;
+
 	/* assimilate and reset per-cpu counters */
 	for_each_online_cpu(i) {
 		struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, i);
 		vq->backlog += stats->bytes_queued;
 		rx_bytes += stats->rx_bytes;
 		stats->bytes_queued = 0;
+
+		rx_pkts += stats->rx_since_last_feedback;
+		rx_marked += stats->rx_marked_since_last_feedback;
+
+		stats->rx_since_last_feedback = 0;
+		stats->rx_marked_since_last_feedback = 0;
 	}
 
 	vq->backlog = min(vq->backlog, (u64)ISO_VQ_MAX_BYTES);
+
+	if (unlikely(rx_pkts == 0)) {
+		if (net_ratelimit())
+			printk(KERN_INFO "EyeQ: BUG: rx_pkts is 0, but it shouldn't be.\n");
+		rx_pkts = 1;
+	}
 
 	if(vq->backlog > 0) {
 		if(!vq->active) {
@@ -253,6 +277,17 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			factor = vq->rate;
 
 		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * dt / factor) >> 3;
+	} else {
+		if(vq->active) {
+			vq->active = 0;
+			atomic_sub(vq->rate, &rxctx->vq_active_rate);
+		}
+		vq->feedback_rate = ISO_VQ_DRAIN_RATE_MBPS;
+		factor = vq->rate;
+	}
+
+	/* The control algorithms */
+	{
 		/* RCP calculation */
 		{
 			int rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
@@ -268,10 +303,17 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq->rx_rate = rx_rate;
 			vq->last_rx_bytes = rx_bytes;
 		}
-	} else {
-		if(vq->active) {
-			vq->active = 0;
-			atomic_sub(vq->rate, &rxctx->vq_active_rate);
+
+		/* ECN calculation */
+		{
+			u32 frac = (rx_marked << ECN_ALPHA_FRAC_SHIFT) / rx_pkts;
+			u32 mult = 1 << (ECN_ALPHA_FRAC_SHIFT + 1);
+			/* Safeguard against races. */
+			frac = min_t(u32, (1 << ECN_ALPHA_FRAC_SHIFT), frac);
+			vq->alpha = EWMA_G16(vq->alpha, frac);
+			vq->feedback_rate = (vq->feedback_rate * (mult - frac)) >> (ECN_ALPHA_FRAC_SHIFT + 1);
+			vq->feedback_rate = min_t(u64, ISO_VQ_DRAIN_RATE_MBPS, vq->feedback_rate);
+			vq->feedback_rate = max_t(u64, ISO_MIN_RFAIR, vq->feedback_rate);
 		}
 	}
 
@@ -307,11 +349,11 @@ void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
 	struct iso_vq_stats *stats;
 
 	iso_class_show(vq->klass, buff);
-	seq_printf(s, "vq class %s   flags %d,%d,%d   rate %llu  rx_rate %llu  fb_rate %llu  "
-			   " backlog %llu   weight %llu   refcnt %d   tokens %llu\n",
-			   buff, vq->enabled, vq->active, vq->is_static,
-			   vq->rate, vq->rx_rate, vq->feedback_rate,
-			   vq->backlog, vq->weight, atomic_read(&vq->refcnt), vq->tokens);
+	seq_printf(s, "vq class %s   flags %d,%d,%d   rate %llu  rx_rate %llu  fb_rate %llu  alpha %u/%u  "
+		   " backlog %llu   weight %llu   refcnt %d   tokens %llu\n",
+		   buff, vq->enabled, vq->active, vq->is_static,
+		   vq->rate, vq->rx_rate, vq->feedback_rate, vq->alpha, (1 << 10),
+		   vq->backlog, vq->weight, atomic_read(&vq->refcnt), vq->tokens);
 
 	for_each_online_cpu(i) {
 		if(first) {
