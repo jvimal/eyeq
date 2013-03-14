@@ -293,7 +293,25 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			int rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
 			u64 diff = rx_bytes - vq->last_rx_bytes;
 			int rx_rate = (diff << 3) / dt;
-			if(ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) {
+#define ECN1
+#ifdef ECN1
+			/* ECN1 is the preferred method of
+			 * incorporating ECN feedback. It's better
+			 * than ECN2 as it explicitly accounts for the
+			 * rate mismatch at the bottleneck queue. */
+			u32 frac = (rx_marked << ECN_ALPHA_FRAC_SHIFT) / rx_pkts;
+			u32 den = (1 << ECN_ALPHA_FRAC_SHIFT);
+			/* Safeguard against races. */
+			frac = min_t(u32, den, frac);
+			vq->alpha = EWMA_G16(vq->alpha, frac);
+
+			if (frac) {
+				rx_rate += (30 * 1500 * 8) * (den + frac) / den / dt;
+				rx_rate = min_t(int, rx_rate, 3 * rate);
+			}
+#endif
+
+			if (ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) {
 				vq->feedback_rate = vq->feedback_rate * (3 * rate - rx_rate) / (rate << 1);
 				vq->feedback_rate = min_t(u64, rate, vq->feedback_rate);
 				vq->feedback_rate = max_t(u64, ISO_MIN_RFAIR, vq->feedback_rate);
@@ -304,6 +322,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq->last_rx_bytes = rx_bytes;
 		}
 
+#ifdef ECN2
 		/* ECN calculation */
 		{
 			u32 frac = (rx_marked << ECN_ALPHA_FRAC_SHIFT) / rx_pkts;
@@ -315,6 +334,7 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq->feedback_rate = min_t(u64, ISO_VQ_DRAIN_RATE_MBPS, vq->feedback_rate);
 			vq->feedback_rate = max_t(u64, ISO_MIN_RFAIR, vq->feedback_rate);
 		}
+#endif
 	}
 
 	// TODO: get rid of all this
