@@ -419,8 +419,12 @@ static int iso_enqueue(struct sk_buff *skb, struct Qdisc *sch) {
 	struct mq_sched *priv = qdisc_priv(root);
 	int ret = NET_XMIT_SUCCESS;
 
-	skb_reset_mac_header(skb);
-	verdict = iso_tx(skb, out, priv->txc);
+	if (unlikely(!IsoGlobalEnabled)) {
+		verdict = ISO_VERDICT_PASS;
+	} else {
+		skb_reset_mac_header(skb);
+		verdict = iso_tx(skb, out, priv->txc);
+	}
 
 	switch(verdict) {
 	case ISO_VERDICT_DROP:
@@ -450,7 +454,7 @@ rx_handler_result_t iso_rx_handler(struct sk_buff **pskb) {
 	if(unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
 
-	if (unlikely(!iso_enabled(in)))
+	if (unlikely(!iso_enabled(in) || !IsoGlobalEnabled))
 		return RX_HANDLER_PASS;
 
 	rxctx = iso_rxctx_dev(in);

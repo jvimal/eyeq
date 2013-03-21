@@ -80,6 +80,15 @@ parser.add_argument("--one-gbe",
                     help="Default parameters for 1GbE.",
                     action="store_true")
 
+parser.add_argument("--enable",
+                    help="Enable perfiso. Short for --set IsoGlobalEnabled,1",
+                    default=False,
+                    action="store_true")
+parser.add_argument("--disable",
+                    help="Disable perfiso. Short for --set IsoGlobalEnabled,0",
+                    default=False,
+                    action="store_true")
+
 args = parser.parse_args()
 
 def is_netdev(dev):
@@ -99,6 +108,12 @@ perfiso.stats()
 if args.get:
     perfiso.get(args)
 elif args.set:
+    perfiso.set(args)
+elif args.enable:
+    args.set = "IsoGlobalEnabled,1"
+    perfiso.set(args)
+elif args.disable:
+    args.set = "IsoGlobalEnabled,0"
     perfiso.set(args)
 elif args.save:
     perfiso.save(args)
