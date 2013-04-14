@@ -40,6 +40,8 @@ For more details, check:
 - A short [[https://raw.github.com/jvimal/eyeq/master/README][README]].
 - Comprehensive system design and evaluation in NSDI 2013:
   [[http://www.stanford.edu/~jvimal/EyeQ-NSDI13.pdf]]
+- NSDI 2013 talk slides and video:
+  [[https://www.usenix.org/conference/nsdi13/eyeq-practical-network-performance-isolation-edge]]
 - A position [[https://www.usenix.org/system/files/conference/hotcloud12/hotcloud12-final38.pdf][workshop paper]], [[https://www.usenix.org/conference/hotcloud12/eyeq-practical-network-performance-isolation-multi-tenant-cloud][talk and slides]] at HotCloud 2012.
 - [[http://stanford.edu/~jvimal/eyeq/EyeQ-Eurosys-Poster.pdf][Poster at Eurosys 2013]].
 
