@@ -60,8 +60,10 @@ More links
 ----------
 
 * Paper with full design and evaluation to appear in NSDI 2013
+  http://www.stanford.edu/~jvimal/EyeQ-NSDI13.pdf
 
 * Talk/slides at NSDI 2013
+  https://www.usenix.org/conference/nsdi13/eyeq-practical-network-performance-isolation-edge
 
 * Early workshop paper at HotCloud 2012
   https://www.usenix.org/system/files/conference/hotcloud12/hotcloud12-final38.pdf
