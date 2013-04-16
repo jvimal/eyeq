@@ -45,6 +45,14 @@ For more details, check:
 - A position [[https://www.usenix.org/system/files/conference/hotcloud12/hotcloud12-final38.pdf][workshop paper]], [[https://www.usenix.org/conference/hotcloud12/eyeq-practical-network-performance-isolation-multi-tenant-cloud][talk and slides]] at HotCloud 2012.
 - [[http://stanford.edu/~jvimal/eyeq/EyeQ-Eurosys-Poster.pdf][Poster at Eurosys 2013]].
 
+* Talk at NSDI 2013
+#+BEGIN_HTML
+<video id="usenix-media-video-1" data-setup="{}" height="419" width="744" poster="https://www.usenix.org/sites/default/files/styles/video-thumbnail/public/conference/video/jeyakumar.jpeg" class="video-js vjs-default-skin" preload="auto" controls>
+<source src='https://2459d6dc103cb5933875-c0245c5c937c5dedcca3f1764ecc9b2f.ssl.cf2.rackcdn.com/nsdi13/jeyakumar.mp4' type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
+<source src='https://2459d6dc103cb5933875-c0245c5c937c5dedcca3f1764ecc9b2f.ssl.cf2.rackcdn.com/nsdi13/jeyakumar.webm' type='video/webm; codecs="vp8.0, vorbis"'>
+</video>
+#+END_HTML
+
 * Getting started
 ** Repositories
 I maintain two repositories for EyeQ.  One is for bleeding edge
@@ -371,6 +379,11 @@ We have also implemented EyeQ's rate limiter, optimized for multiqueue
 networking devices, as a drop-in replacement to Linux's Token Bucket
 Filter (=tbf=).  You can download it from the ptb repository:
 [[https://github.com/jvimal/ptb]].
+
+We have a rate limiter supporting most of HTB's features (hierarchical
+rate limiting) in the works.  We're working with Linux Kernel
+Developers to release it upstream, but if you want to try out an early
+release, let me know!
 
 ** Obtaining, Compiling and Installing
 Since =ptb= is a drop-in replacement for =tbf=, you will have to

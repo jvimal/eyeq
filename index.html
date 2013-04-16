@@ -5,10 +5,9 @@
 lang="en" xml:lang="en">
 <head>
 <title>EyeQ Documentation</title>
-<meta name="google-site-verification" content="XNGh0oE3TtdednJ1g-ukOSKZ78wu59yC1sqeQvkf69k" />
 <meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
 <meta name="generator" content="Org-mode"/>
-<meta name="generated" content="2013-04-14 14:43:09 PDT"/>
+<meta name="generated" content="2013-04-15 17:43:44 PDT"/>
 <meta name="author" content="Vimalkumar"/>
 <meta name="description" content=""/>
 <meta name="keywords" content=""/>
@@ -105,6 +104,7 @@ h3, h4, h5, h6 {border-bottom: 1px solid #ccc; color: #0B108C; }</style>
   })();
 
 </script>
+<meta name="google-site-verification" content="XNGh0oE3TtdednJ1g-ukOSKZ78wu59yC1sqeQvkf69k" />
 
 
 
@@ -113,30 +113,31 @@ h3, h4, h5, h6 {border-bottom: 1px solid #ccc; color: #0B108C; }</style>
 <div id="text-table-of-contents">
 <ul>
 <li><a href="#sec-1">1 What is EyeQ? </a></li>
-<li><a href="#sec-2">2 Getting started </a>
+<li><a href="#sec-2">2 Talk at NSDI 2013 </a></li>
+<li><a href="#sec-3">3 Getting started </a>
 <ul>
-<li><a href="#sec-2_1">2.1 Repositories </a></li>
-<li><a href="#sec-2_2">2.2 Downloading </a></li>
-<li><a href="#sec-2_3">2.3 Compiling </a></li>
-<li><a href="#sec-2_4">2.4 Installing </a></li>
-<li><a href="#sec-2_5">2.5 Usage </a>
+<li><a href="#sec-3_1">3.1 Repositories </a></li>
+<li><a href="#sec-3_2">3.2 Downloading </a></li>
+<li><a href="#sec-3_3">3.3 Compiling </a></li>
+<li><a href="#sec-3_4">3.4 Installing </a></li>
+<li><a href="#sec-3_5">3.5 Usage </a>
 <ul>
-<li><a href="#sec-2_5_1">2.5.1 Creating tenants </a></li>
-<li><a href="#sec-2_5_2">2.5.2 Removing tenants </a></li>
-<li><a href="#sec-2_5_3">2.5.3 Parameters </a></li>
-<li><a href="#sec-2_5_4">2.5.4 Saving and restoring configurations </a></li>
-<li><a href="#sec-2_5_5">2.5.5 Unloading EyeQ </a></li>
+<li><a href="#sec-3_5_1">3.5.1 Creating tenants </a></li>
+<li><a href="#sec-3_5_2">3.5.2 Removing tenants </a></li>
+<li><a href="#sec-3_5_3">3.5.3 Parameters </a></li>
+<li><a href="#sec-3_5_4">3.5.4 Saving and restoring configurations </a></li>
+<li><a href="#sec-3_5_5">3.5.5 Unloading EyeQ </a></li>
 </ul></li>
 </ul>
 </li>
-<li><a href="#sec-3">3 Trying things out </a>
+<li><a href="#sec-4">4 Trying things out </a>
 <ul>
-<li><a href="#sec-3_1">3.1 Mininet </a></li>
+<li><a href="#sec-4_1">4.1 Mininet </a></li>
 </ul>
 </li>
-<li><a href="#sec-4">4 Rate limiter </a>
+<li><a href="#sec-5">5 Rate limiter </a>
 <ul>
-<li><a href="#sec-4_1">4.1 Obtaining, Compiling and Installing </a></li>
+<li><a href="#sec-5_1">5.1 Obtaining, Compiling and Installing </a></li>
 </ul>
 </li>
 </ul>
@@ -174,15 +175,29 @@ For more details, check:
 </div>
 
 <div id="outline-container-2" class="outline-2">
-<h2 id="sec-2"><span class="section-number-2">2</span> Getting started </h2>
+<h2 id="sec-2"><span class="section-number-2">2</span> Talk at NSDI 2013 </h2>
 <div class="outline-text-2" id="text-2">
+
+
+<video id="usenix-media-video-1" data-setup="{}" height="419" width="744" poster="https://www.usenix.org/sites/default/files/styles/video-thumbnail/public/conference/video/jeyakumar.jpeg" class="video-js vjs-default-skin" preload="auto" controls>
+<source src='https://2459d6dc103cb5933875-c0245c5c937c5dedcca3f1764ecc9b2f.ssl.cf2.rackcdn.com/nsdi13/jeyakumar.mp4' type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'>
+<source src='https://2459d6dc103cb5933875-c0245c5c937c5dedcca3f1764ecc9b2f.ssl.cf2.rackcdn.com/nsdi13/jeyakumar.webm' type='video/webm; codecs="vp8.0, vorbis"'>
+</video>
+
+</div>
+
+</div>
+
+<div id="outline-container-3" class="outline-2">
+<h2 id="sec-3"><span class="section-number-2">3</span> Getting started </h2>
+<div class="outline-text-2" id="text-3">
 
 
 </div>
 
-<div id="outline-container-2_1" class="outline-3">
-<h3 id="sec-2_1"><span class="section-number-3">2.1</span> Repositories </h3>
-<div class="outline-text-3" id="text-2_1">
+<div id="outline-container-3_1" class="outline-3">
+<h3 id="sec-3_1"><span class="section-number-3">3.1</span> Repositories </h3>
+<div class="outline-text-3" id="text-3_1">
 
 <p>I maintain two repositories for EyeQ.  One is for bleeding edge
 development, and the other is for releases.  The bleeding edge
@@ -198,9 +213,9 @@ bleeding edge repository is under an older project name:
 
 </div>
 
-<div id="outline-container-2_2" class="outline-3">
-<h3 id="sec-2_2"><span class="section-number-3">2.2</span> Downloading </h3>
-<div class="outline-text-3" id="text-2_2">
+<div id="outline-container-3_2" class="outline-3">
+<h3 id="sec-3_2"><span class="section-number-3">3.2</span> Downloading </h3>
+<div class="outline-text-3" id="text-3_2">
 
 <p>You can clone the github repositories, which has the source code to
 compile the Linux kernel module:
@@ -216,9 +231,9 @@ compile the Linux kernel module:
 
 </div>
 
-<div id="outline-container-2_3" class="outline-3">
-<h3 id="sec-2_3"><span class="section-number-3">2.3</span> Compiling </h3>
-<div class="outline-text-3" id="text-2_3">
+<div id="outline-container-3_3" class="outline-3">
+<h3 id="sec-3_3"><span class="section-number-3">3.3</span> Compiling </h3>
+<div class="outline-text-3" id="text-3_3">
 
 <p>I have tested EyeQ with Linux 3.0 and above.  EyeQ is a kernel module
 that implements a queueing discpline.  So you need the kernel headers
@@ -248,9 +263,9 @@ number accordingly.
 
 </div>
 
-<div id="outline-container-2_4" class="outline-3">
-<h3 id="sec-2_4"><span class="section-number-3">2.4</span> Installing </h3>
-<div class="outline-text-3" id="text-2_4">
+<div id="outline-container-3_4" class="outline-3">
+<h3 id="sec-3_4"><span class="section-number-3">3.4</span> Installing </h3>
+<div class="outline-text-3" id="text-3_4">
 
 <p>EyeQ hooks into the transmit path by acting as a queueing discipline.
 To avoid dependency on <code>iproute</code>, EyeQ replaces the hierarchical token
@@ -287,9 +302,9 @@ qdisc htb 1: dev eth0 root
 
 </div>
 
-<div id="outline-container-2_5" class="outline-3">
-<h3 id="sec-2_5"><span class="section-number-3">2.5</span> Usage </h3>
-<div class="outline-text-3" id="text-2_5">
+<div id="outline-container-3_5" class="outline-3">
+<h3 id="sec-3_5"><span class="section-number-3">3.5</span> Usage </h3>
+<div class="outline-text-3" id="text-3_5">
 
 <p>We provide a separate python configuration tool to work with EyeQ, as
 it does not use the standard <code>tc</code> interface.  EyeQ kernel module
@@ -298,9 +313,9 @@ exports a sysfs file which it uses for all configuration mechanisms.
 
 </div>
 
-<div id="outline-container-2_5_1" class="outline-4">
-<h4 id="sec-2_5_1"><span class="section-number-4">2.5.1</span> Creating tenants </h4>
-<div class="outline-text-4" id="text-2_5_1">
+<div id="outline-container-3_5_1" class="outline-4">
+<h4 id="sec-3_5_1"><span class="section-number-4">3.5.1</span> Creating tenants </h4>
+<div class="outline-text-4" id="text-3_5_1">
 
 <p>EyeQ lets you filter tenants using IP addresses.  Filters are needed
 to correctly classify packets to their corresponding groups for proper
@@ -353,15 +368,15 @@ To set a different weight for tenant 10.0.1.1 on the receive path, do:
  knows how to route packets; the tool does not do them on your behalf.
  There is a sample script <code>tests/tenant.py</code> that automatically creates
  IP addresses and routing tables in a consistent fashion.  Check the
- <a href="#sec-3_1">Mininet section below</a>.
+ <a href="#sec-4_1">Mininet section below</a>.
 </p>
 </div>
 
 </div>
 
-<div id="outline-container-2_5_2" class="outline-4">
-<h4 id="sec-2_5_2"><span class="section-number-4">2.5.2</span> Removing tenants </h4>
-<div class="outline-text-4" id="text-2_5_2">
+<div id="outline-container-3_5_2" class="outline-4">
+<h4 id="sec-3_5_2"><span class="section-number-4">3.5.2</span> Removing tenants </h4>
+<div class="outline-text-4" id="text-3_5_2">
 
 
 
@@ -375,9 +390,9 @@ To set a different weight for tenant 10.0.1.1 on the receive path, do:
 
 </div>
 
-<div id="outline-container-2_5_3" class="outline-4">
-<h4 id="sec-2_5_3"><span class="section-number-4">2.5.3</span> Parameters </h4>
-<div class="outline-text-4" id="text-2_5_3">
+<div id="outline-container-3_5_3" class="outline-4">
+<h4 id="sec-3_5_3"><span class="section-number-4">3.5.3</span> Parameters </h4>
+<div class="outline-text-4" id="text-3_5_3">
 
 <p>EyeQ exposes a number of knobs to fine tune its operation.  In many
 cases the default should just suffice.  The default parameters are
@@ -415,9 +430,9 @@ Setting ISO_MAX_TX_RATE = 980
 
 </div>
 
-<div id="outline-container-2_5_4" class="outline-4">
-<h4 id="sec-2_5_4"><span class="section-number-4">2.5.4</span> Saving and restoring configurations </h4>
-<div class="outline-text-4" id="text-2_5_4">
+<div id="outline-container-3_5_4" class="outline-4">
+<h4 id="sec-3_5_4"><span class="section-number-4">3.5.4</span> Saving and restoring configurations </h4>
+<div class="outline-text-4" id="text-3_5_4">
 
 <p>You can save the config as a json file which you can restore later.
 </p>
@@ -453,9 +468,9 @@ $ cat /tmp/config
 
 </div>
 
-<div id="outline-container-2_5_5" class="outline-4">
-<h4 id="sec-2_5_5"><span class="section-number-4">2.5.5</span> Unloading EyeQ </h4>
-<div class="outline-text-4" id="text-2_5_5">
+<div id="outline-container-3_5_5" class="outline-4">
+<h4 id="sec-3_5_5"><span class="section-number-4">3.5.5</span> Unloading EyeQ </h4>
+<div class="outline-text-4" id="text-3_5_5">
 
 <p>You can unload EyeQ by first removing each qdisc you created on
 network devices.
@@ -487,9 +502,9 @@ root:
 
 </div>
 
-<div id="outline-container-3" class="outline-2">
-<h2 id="sec-3"><span class="section-number-2">3</span> Trying things out </h2>
-<div class="outline-text-2" id="text-3">
+<div id="outline-container-4" class="outline-2">
+<h2 id="sec-4"><span class="section-number-2">4</span> Trying things out </h2>
+<div class="outline-text-2" id="text-4">
 
 <p>The scripts used in all our experiments in the NSDI paper are
 available online in the <a href="https://github.com/jvimal/eyeq-tests">test repository</a>.
@@ -497,9 +512,9 @@ available online in the <a href="https://github.com/jvimal/eyeq-tests">test repo
 
 </div>
 
-<div id="outline-container-3_1" class="outline-3">
-<h3 id="sec-3_1"><a name="Mininet" id="Mininet"></a><span class="section-number-3">3.1</span> Mininet </h3>
-<div class="outline-text-3" id="text-3_1">
+<div id="outline-container-4_1" class="outline-3">
+<h3 id="sec-4_1"><a name="Mininet" id="Mininet"></a><span class="section-number-3">4.1</span> Mininet </h3>
+<div class="outline-text-3" id="text-4_1">
 
 <p><a href="http://mininet.github.com/">Mininet</a> is a collection of useful scripts to configure features such
 as network namespaces, containers and <a href="http://lartc.org/">Linux Traffic Control</a>, to create
@@ -701,21 +716,27 @@ Setting ISO_VQ_UPDATE_INTERVAL_US = 10000
 
 </div>
 
-<div id="outline-container-4" class="outline-2">
-<h2 id="sec-4"><span class="section-number-2">4</span> Rate limiter </h2>
-<div class="outline-text-2" id="text-4">
+<div id="outline-container-5" class="outline-2">
+<h2 id="sec-5"><span class="section-number-2">5</span> Rate limiter </h2>
+<div class="outline-text-2" id="text-5">
 
 <p>We have also implemented EyeQ's rate limiter, optimized for multiqueue
 networking devices, as a drop-in replacement to Linux's Token Bucket
 Filter (<code>tbf</code>).  You can download it from the ptb repository:
 <a href="https://github.com/jvimal/ptb">https://github.com/jvimal/ptb</a>.
 </p>
+<p>
+We have a rate limiter supporting most of HTB's features (hierarchical
+rate limiting) in the works.  We're working with Linux Kernel
+Developers to release it upstream, but if you want to try out an early
+release, let me know!
+</p>
 
 </div>
 
-<div id="outline-container-4_1" class="outline-3">
-<h3 id="sec-4_1"><span class="section-number-3">4.1</span> Obtaining, Compiling and Installing </h3>
-<div class="outline-text-3" id="text-4_1">
+<div id="outline-container-5_1" class="outline-3">
+<h3 id="sec-5_1"><span class="section-number-3">5.1</span> Obtaining, Compiling and Installing </h3>
+<div class="outline-text-3" id="text-5_1">
 
 <p>Since <code>ptb</code> is a drop-in replacement for <code>tbf</code>, you will have to
 remove <code>tbf</code> from a running kernel before you can use <code>ptb</code>.  The
@@ -769,7 +790,7 @@ tc qdisc add dev $dev root handle 1: tbf limit 100000 burst 1000 rate 3Gbit
 </div>
 <div id="postamble">
 <p class="author">Author: Vimalkumar (<a href="mailto:j.vimal@gmail.com">j.vimal@gmail.com</a>)</p>
-<p class="date">Date: 2013-04-14 14:43:09 PDT</p>
+<p class="date">Date: 2013-04-15 17:43:44 PDT</p>
 <p class="creator">Generated by Org version 7.4 with Emacs version 24</p>
 <p class="xhtml-validation"><a href="http://validator.w3.org/check?uri=referer">Validate XHTML 1.0</a></p>
 </div>
