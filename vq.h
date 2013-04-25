@@ -48,12 +48,10 @@ struct iso_vq_stats {
 
 struct iso_vq {
 	u8 enabled;
-	u8 active;
 	u8 is_static;
 
 	u64 rate;
 	u64 total_bytes_queued;
-	u64 backlog;
 	u64 feedback_rate;
 	u64 rx_rate;
 	u64 last_rx_bytes;
@@ -65,7 +63,6 @@ struct iso_vq {
 
 	struct iso_vq_stats __percpu *percpu_stats;
 	spinlock_t spinlock;
-	u64 tokens;
 
 	iso_class_t klass;
 	struct list_head list;
@@ -93,7 +90,6 @@ int iso_vq_init(struct iso_vq *);
 struct iso_vq *iso_vq_alloc(iso_class_t, struct iso_rx_context *);
 void iso_vq_free(struct iso_vq *);
 void iso_vq_enqueue(struct iso_vq *, struct sk_buff *);
-static inline int iso_vq_active(struct iso_vq *);
 void iso_vq_drain(struct iso_vq *, u64);
 static inline int iso_vq_over_limits(struct iso_vq *);
 void iso_vq_calculate_rates(struct iso_rx_context *);
@@ -120,10 +116,6 @@ static inline struct iso_vq *iso_vq_find(iso_class_t klass, struct iso_rx_contex
 
 static inline int iso_vq_over_limits(struct iso_vq *vq) {
 	return vq->feedback_rate;
-}
-
-static inline int iso_vq_active(struct iso_vq *vq) {
-	return vq->backlog > 0;
 }
 
 

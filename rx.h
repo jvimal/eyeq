@@ -10,7 +10,6 @@ struct iso_rx_stats {
 
 struct iso_rx_context {
 	ktime_t vq_last_update_time;
-	ktime_t vq_last_check_time;
 	spinlock_t vq_spinlock;
 	struct list_head vq_list;
 	struct hlist_head vq_bucket[ISO_MAX_VQ_BUCKETS];

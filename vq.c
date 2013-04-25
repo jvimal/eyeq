@@ -15,7 +15,6 @@ void iso_vqs_init(struct iso_rx_context *ctx) {
 	int i;
 	INIT_LIST_HEAD(&ctx->vq_list);
 	ctx->vq_last_update_time = ktime_get();
-	ctx->vq_last_check_time = ktime_get();
 
 	spin_lock_init(&ctx->vq_spinlock);
 	atomic_set(&ctx->vq_active_rate, 0);
@@ -76,11 +75,9 @@ void iso_vq_calculate_rates(struct iso_rx_context *rxctx) {
 int iso_vq_init(struct iso_vq *vq) {
 	int i;
 	vq->enabled = 1;
-	vq->active = 0;
 	vq->is_static = 0;
 	vq->rate = ISO_MIN_RFAIR;
 	vq->total_bytes_queued = 0;
-	vq->backlog = 0;
 	vq->feedback_rate = ISO_MIN_RFAIR;
 	vq->last_rx_bytes = 0;
 	vq->rx_rate = 0;
@@ -103,7 +100,6 @@ int iso_vq_init(struct iso_vq *vq) {
 	}
 
 	spin_lock_init(&vq->spinlock);
-	vq->tokens = 0;
 
 	INIT_LIST_HEAD(&vq->list);
 	INIT_HLIST_NODE(&vq->hash_node);
@@ -122,25 +118,6 @@ void iso_vq_free(struct iso_vq *vq) {
 	kfree(vq);
 }
 
-void iso_vq_check_idle(struct iso_rx_context *rxctx) {
-	struct iso_vq *vq, *vq_next;
-	ktime_t now = ktime_get();
-
-	for_each_vq(vq, rxctx) {
-		if(!spin_trylock(&vq->spinlock))
-			continue;
-
-		if(vq->active && ktime_us_delta(now, vq->last_update_time) > 10000) {
-			vq->active = 0;
-			atomic_sub(vq->rate, &rxctx->vq_active_rate);
-		}
-
-		spin_unlock(&vq->spinlock);
-	}
-
-	rxctx->vq_last_check_time = now;
-}
-
 void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	ktime_t now;
 	u64 dt;
@@ -150,7 +127,6 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	u32 len = skb_size(pkt);
 	struct ethhdr *eth;
 	struct iphdr *iph;
-	struct iso_rx_context *rxctx = vq->rxctx;
 
 	eth = eth_hdr(pkt);
 
@@ -163,11 +139,6 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 			stats->network_marked++;
 			stats->rx_marked_since_last_feedback++;
 		}
-	}
-
-	now = ktime_get();
-	if(ktime_us_delta(now, rxctx->vq_last_check_time) > 10000) {
-		iso_vq_check_idle(rxctx);
 	}
 
 	now = ktime_get();
@@ -205,7 +176,6 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 	/* assimilate and reset per-cpu counters */
 	for_each_online_cpu(i) {
 		struct iso_vq_stats *stats = per_cpu_ptr(vq->percpu_stats, i);
-		vq->backlog += stats->bytes_queued;
 		rx_bytes += stats->rx_bytes;
 		stats->bytes_queued = 0;
 
@@ -283,11 +253,11 @@ void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {
 	struct iso_vq_stats *stats;
 
 	iso_class_show(vq->klass, buff);
-	seq_printf(s, "vq class %s   flags %d,%d,%d   rate %llu  rx_rate %llu  fb_rate %llu  alpha %u/%u  "
-		   " backlog %llu   weight %llu   refcnt %d   tokens %llu\n",
-		   buff, vq->enabled, vq->active, vq->is_static,
+	seq_printf(s, "vq class %s   flags %d,%d   rate %llu  rx_rate %llu  fb_rate %llu  alpha %u/%u  "
+		   " backlog -   weight %llu   refcnt %d\n",
+		   buff, vq->enabled, vq->is_static,
 		   vq->rate, vq->rx_rate, vq->feedback_rate, vq->alpha, (1 << 10),
-		   vq->backlog, vq->weight, atomic_read(&vq->refcnt), vq->tokens);
+		   vq->weight, atomic_read(&vq->refcnt));
 
 	for_each_online_cpu(i) {
 		if(first) {
