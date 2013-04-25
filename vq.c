@@ -14,7 +14,6 @@ atomic_t vq_active_rate;
 void iso_vqs_init(struct iso_rx_context *ctx) {
 	int i;
 	INIT_LIST_HEAD(&ctx->vq_list);
-	ctx->vq_total_tokens = 0;
 	ctx->vq_last_update_time = ktime_get();
 	ctx->vq_last_check_time = ktime_get();
 
@@ -54,6 +53,11 @@ struct iso_vq *iso_vq_alloc(iso_class_t klass, struct iso_rx_context *rxctx) {
 	return vq;
 }
 
+/*
+ * Called in slow path when configuring each VQ's rates.  This can be
+ * made much faster (i.e., remove this completely), but not worth the
+ * trouble now.
+ */
 void iso_vq_calculate_rates(struct iso_rx_context *rxctx) {
 	u32 total_weight = 0;
 	struct iso_vq *vq, *vq_next;
@@ -179,54 +183,9 @@ void iso_vq_enqueue(struct iso_vq *vq, struct sk_buff *pkt) {
 	stats->rx_bytes += len;
 }
 
-/* Should be called once in a while */
-void iso_vq_tick(u64 dt, struct iso_rx_context *rxctx) {
-	u64 diff_tokens = (ISO_VQ_DRAIN_RATE_MBPS * dt) >> 3;
-	u64 active_weight = 0, total_weight = 0;
-	struct iso_vq *vq, *vq_next;
-
-	rxctx->vq_total_tokens += diff_tokens;
-	rxctx->vq_total_tokens = min((u64)(ISO_VQ_DRAIN_RATE_MBPS * ISO_MAX_BURST_TIME_US) >> 3,
-				     diff_tokens);
-
-	for_each_vq(vq, rxctx) {
-		iso_vq_drain(vq, dt);
-		total_weight += vq->weight;
-		if(iso_vq_active(vq))
-			active_weight += vq->weight;
-	}
-
-	/* Reassign capacities */
-	for_each_vq(vq, rxctx) {
-		if(iso_vq_active(vq) && active_weight > 0) {
-			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / active_weight;
-		} else {
-			vq->rate = 0;
-		}
-	}
-}
-
-/* Called with the global lock */
-inline void iso_vq_global_tick(struct iso_rx_context *rxctx) {
-	u64 dtokens, dt, maxtokens;
-	ktime_t now = ktime_get();
-
-	dt = ktime_us_delta(now, rxctx->vq_last_update_time);
-	dt = min_t(u64, dt, ISO_VQ_REFRESH_INTERVAL_US);
-
-	dtokens = (ISO_VQ_DRAIN_RATE_MBPS * dt) >> 3;
-	maxtokens = (ISO_VQ_DRAIN_RATE_MBPS * ISO_VQ_REFRESH_INTERVAL_US) >> 3;
-
-	rxctx->vq_total_tokens = min(maxtokens, rxctx->vq_total_tokens + dtokens);
-	rxctx->vq_last_update_time = now;
-}
-
-
-
 /* called with vq's lock */
 void iso_vq_drain(struct iso_vq *vq, u64 dt) {
-	u64 can_drain, max_drain, min_borrow;
-	u64 rx_bytes, dt2;
+	u64 rx_bytes, dt2, rate;
 	u32 rx_pkts, rx_marked;
 	int i, factor;
 	ktime_t now = ktime_get();
@@ -237,7 +196,6 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		return;
 
 	vq->last_update_time = now;
-	min_borrow = 0;
 	rx_bytes = 0;
 	factor = 0;
 
@@ -258,39 +216,19 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		stats->rx_marked_since_last_feedback = 0;
 	}
 
-	vq->backlog = min(vq->backlog, (u64)ISO_VQ_MAX_BYTES);
-
 	if (unlikely(rx_pkts == 0)) {
 		if (net_ratelimit())
 			printk(KERN_INFO "EyeQ: BUG: rx_pkts is 0, but it shouldn't be.\n");
 		rx_pkts = 1;
 	}
 
-	if(vq->backlog > 0) {
-		if(!vq->active) {
-			vq->active = 1;
-			atomic_add(vq->rate, &rxctx->vq_active_rate);
-		}
-
-		factor = atomic_read(&rxctx->vq_active_rate);
-		if(factor == 0)
-			factor = vq->rate;
-
-		min_borrow = (ISO_VQ_DRAIN_RATE_MBPS * vq->rate * dt / factor) >> 3;
-	} else {
-		if(vq->active) {
-			vq->active = 0;
-			atomic_sub(vq->rate, &rxctx->vq_active_rate);
-		}
-		vq->feedback_rate = ISO_VQ_DRAIN_RATE_MBPS;
-		factor = vq->rate;
-	}
+	/* The rate is at least vq's rate */
+	rate = vq->weight * rxctx->rcp_rate;
 
 	/* The control algorithms */
 	{
 		/* RCP calculation */
 		{
-			int rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
 			u64 diff = rx_bytes - vq->last_rx_bytes;
 			int rx_rate = (diff << 3) / dt;
 #define ECN1
@@ -306,13 +244,14 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 			vq->alpha = EWMA_G16(vq->alpha, frac);
 
 			if (frac) {
-				rx_rate += (30 * 1500 * 8) * (den + frac) / den / dt;
+				rx_rate += (ISO_ECN_MARK_THRESH_BYTES << 3) * (den + frac) / den / dt;
 				rx_rate = min_t(int, rx_rate, 3 * rate);
 			}
 #endif
 
 			if (ISO_VQ_DRAIN_RATE_MBPS <= ISO_MAX_TX_RATE) {
-				vq->feedback_rate = vq->feedback_rate * (3 * rate - rx_rate) / (rate << 1);
+				u32 rate2 = (rate << 1);
+				vq->feedback_rate = vq->feedback_rate * (rate2 + rate - rx_rate) / rate2;
 				vq->feedback_rate = min_t(u64, rate, vq->feedback_rate);
 				vq->feedback_rate = max_t(u64, ISO_MIN_RFAIR, vq->feedback_rate);
 			} else {
@@ -336,31 +275,6 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 		}
 #endif
 	}
-
-	// TODO: get rid of all this
-	if(vq->tokens == 0) {
-		/* We've run out of tokens.  Borrow in proportion to our
-		   rate */
-		u64 borrow = min_borrow;
-
-		if(spin_trylock_irq(&rxctx->vq_spinlock)) {
-			int rate;
-			iso_vq_global_tick(rxctx);
-			rxctx->vq_total_tokens -= borrow;
-			vq->tokens += borrow;
-			/* Don't accumulate infinitely many tokens */
-			if(factor == 0)
-				factor = vq->rate;
-			rate = vq->rate * ISO_VQ_DRAIN_RATE_MBPS / factor;
-			vq->tokens = min_t(u64, vq->tokens, (rate * ISO_MAX_BURST_TIME_US) >> 3);
-			spin_unlock_irq(&rxctx->vq_spinlock);
-		}
-	}
-
-	max_drain = vq->tokens;
-	can_drain = min(vq->backlog, max_drain);
-	vq->backlog -= can_drain;
-	vq->tokens -= can_drain;
 }
 
 void iso_vq_show(struct iso_vq *vq, struct seq_file *s) {

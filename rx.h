@@ -3,8 +3,12 @@
 
 #include "tx.h"
 
+struct iso_rx_stats {
+	u64 rx_bytes;
+	u64 rx_packets;
+};
+
 struct iso_rx_context {
-	s64 vq_total_tokens;
 	ktime_t vq_last_update_time;
 	ktime_t vq_last_check_time;
 	spinlock_t vq_spinlock;
@@ -14,6 +18,15 @@ struct iso_rx_context {
 
 	struct list_head list;
 	struct net_device *netdev;
+
+	/* Hierarchical RCP state */
+	struct iso_rx_stats __percpu *stats;
+	struct iso_rx_stats global_stats;
+	struct iso_rx_stats global_stats_last;
+	ktime_t last_stats_update_time;
+	ktime_t last_rcp_time;
+	u32 rcp_rate;
+	u32 rx_rate;
 };
 
 struct iso_rx_context *iso_rxctx_dev(const struct net_device *dev);

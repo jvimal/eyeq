@@ -94,10 +94,8 @@ struct iso_vq *iso_vq_alloc(iso_class_t, struct iso_rx_context *);
 void iso_vq_free(struct iso_vq *);
 void iso_vq_enqueue(struct iso_vq *, struct sk_buff *);
 static inline int iso_vq_active(struct iso_vq *);
-void iso_vq_tick(u64, struct iso_rx_context *);
 void iso_vq_drain(struct iso_vq *, u64);
 static inline int iso_vq_over_limits(struct iso_vq *);
-inline void iso_vq_global_tick(struct iso_rx_context *);
 void iso_vq_calculate_rates(struct iso_rx_context *);
 void iso_vq_check_idle(struct iso_rx_context *);
 

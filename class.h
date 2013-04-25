@@ -22,7 +22,7 @@ typedef struct {
 }iso_class_t;
 #elif defined ISO_TX_CLASS_MARK
 typedef u32 iso_class_t;
-#elif defined ISO_TX_CLASS_IPADDR
+#elif defined ISO_TX_CLASS_IPADDR || defined ISO_TX_CLASS_L4PORT
 typedef u32 iso_class_t;
 #endif
 
@@ -203,6 +203,60 @@ static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
 		klass = ip_hdr(skb)->daddr;
 	}
 	return klass;
+}
+
+#elif defined ISO_TX_CLASS_L4PORT
+static inline iso_class_t iso_txc_classify(struct sk_buff *skb) {
+	struct ethhdr *eth;
+	struct iphdr *iph;
+	u32 port = 0;
+
+	eth = eth_hdr(skb);
+	if(likely(eth->h_proto == __constant_htons(ETH_P_IP))) {
+		iph = ip_hdr(skb);
+		switch (iph->protocol) {
+		case IPPROTO_TCP:
+			port = tcp_hdr(skb)->dest;
+			break;
+
+		case IPPROTO_UDP:
+			port = udp_hdr(skb)->dest;
+			break;
+		}
+	}
+
+	return port;
+}
+
+static inline void iso_class_free(iso_class_t klass) {}
+
+static inline int iso_class_cmp(iso_class_t a, iso_class_t b) {
+	return a - b;
+}
+
+/* We don't do any bit mixing here; it's for ease of use */
+static inline u32 iso_class_hash(iso_class_t klass) {
+	return jhash_1word(klass, 0xdeadbeef);
+}
+
+static inline void iso_class_show(iso_class_t klass, char *buff) {
+	u32 addr = htons(klass);
+	sprintf(buff, "%u", addr);
+}
+
+static inline iso_class_t iso_class_parse(char *portnum) {
+	u32 port;
+	int n;
+
+	port = 0;
+	n = sscanf(portnum, "%u", &port);
+	return htons(port);
+}
+
+/* Even on the receive side, we should only look at the L4 dest. port
+ * number... */
+static inline iso_class_t iso_rx_classify(struct sk_buff *skb) {
+	return iso_txc_classify(skb);
 }
 
 #endif

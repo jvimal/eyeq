@@ -57,9 +57,12 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 	}
 
 	for_each_rx_context(rxctx) {
-		seq_printf(s, "\nvqs->dev %s   total_tokens %lld   last_update %llx   active_rate %d\n",
+		seq_printf(s, "\nvqs->dev %s   last_update %llx   active_rate %d   rx_rate %d   rcp_rate %d\n",
 			   rxctx->netdev->name,
-			   rxctx->vq_total_tokens, rxctx->vq_last_update_time.tv64, atomic_read(&rxctx->vq_active_rate));
+			   rxctx->vq_last_update_time.tv64,
+			   atomic_read(&rxctx->vq_active_rate),
+			   rxctx->rx_rate,
+			   rxctx->rcp_rate);
 
 		for_each_vq(vq, rxctx) {
 			iso_vq_show(vq, s);
