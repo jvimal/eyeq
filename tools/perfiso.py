@@ -115,8 +115,15 @@ class TxClass:
 
     def set_weight(self, dev, klass, w):
         c = "echo dev %s %s weight %s > %s/set_txc_weight" % (dev, klass, w, ISO_SYSFS)
-        logging.info("Setting weight of vq %s on dev %s to %s" % (klass, dev, w))
+        logging.info("Setting weight of txc %s on dev %s to %s" % (klass, dev, w))
         return cmd(c)
+
+    def set_rate(self, dev, klass, rate):
+        c = "echo dev %s %s rate %s > %s/set_txc_rate" % (dev, klass, rate, ISO_SYSFS)
+        return cmd(c)
+
+    def clear_rate(self, dev, klass):
+        self.set_rate(dev, klass, 0)
 
     def associate(self, dev, klass, vq):
         c = "echo dev %s associate txc %s vq %s > %s/assoc_txc_vq" % (dev, klass, vq, ISO_SYSFS)
@@ -171,6 +178,13 @@ class VQ:
     def set_weight(self, dev, klass, w):
         c = "echo dev %s %s weight %s > %s/set_vq_weight" % (dev, klass, w, ISO_SYSFS)
         return cmd(c)
+
+    def set_rate(self, dev, klass, rate):
+        c = "echo dev %s %s rate %s > %s/set_vq_rate" % (dev, klass, rate, ISO_SYSFS)
+        return cmd(c)
+
+    def clear_rate(self, dev, klass):
+        self.set_rate(dev, klass, 0)
 
     def get(self):
         if not os.path.exists(ISO_PROCFILE):

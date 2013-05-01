@@ -57,11 +57,15 @@ parser.add_argument('--set-rps',
                     default=None)
 
 parser.add_argument("--create-tenant", '-c',
-                    help="Create tenant.  Pass tenant class id (IP address).",
+                    help="Create tenant.  Pass tenant class id (IP address/Port/etc.).",
+                    default=None)
+
+parser.add_argument("--change-tenant", '--ch',
+                    help="Change tenant parameters.  Pass tenant class id (IP address/Port/etc.).",
                     default=None)
 
 parser.add_argument("--delete-tenant", '-d',
-                    help="Delete tenant.  Pass tenant class id (IP address).",
+                    help="Delete tenant.  Pass tenant class id (IP address/Port/etc.).",
                     default=None)
 
 parser.add_argument("--list", '-l',
@@ -75,6 +79,10 @@ parser.add_argument("--stats",
 parser.add_argument('--weight', '-w',
                     help="Relative weight of tenant.",
                     default=1)
+
+parser.add_argument('--rate', '-r',
+                    help="Relative weight of tenant.",
+                    default=-1)
 
 parser.add_argument("--one-gbe",
                     help="Default parameters for 1GbE.",
@@ -125,16 +133,23 @@ elif args.get_rps:
     perfiso.get_rps(args)
 elif args.set_rps:
     perfiso.set_rps(args)
-elif args.create_tenant:
-    tid = args.create_tenant
+elif args.create_tenant or args.change_tenant:
+    if args.create_tenant:
+        tid = args.create_tenant
+    else:
+        tid = args.change_tenant
     dev = args.dev
     if not is_netdev(dev):
         perfiso.die("Device %s not found" % dev)
-    perfiso.txc.create(dev, tid)
-    perfiso.vqs.create(dev, tid)
-    perfiso.txc.associate(dev, tid, tid)
+    if args.create_tenant:
+        perfiso.txc.create(dev, tid)
+        perfiso.vqs.create(dev, tid)
+        perfiso.txc.associate(dev, tid, tid)
     perfiso.txc.set_weight(dev, tid, args.weight)
     perfiso.vqs.set_weight(dev, tid, args.weight)
+    if args.rate >= 0:
+        perfiso.txc.set_rate(dev, tid, args.rate)
+        perfiso.vqs.set_rate(dev, tid, args.rate)
 elif args.delete_tenant:
     tid = args.delete_tenant
     dev = args.dev
