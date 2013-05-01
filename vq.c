@@ -67,6 +67,8 @@ void iso_vq_calculate_rates(struct iso_rx_context *rxctx) {
 
 	if(total_weight > 0) {
 		for_each_vq(vq, rxctx) {
+			if (vq->is_static)
+				continue;
 			vq->rate = ISO_VQ_DRAIN_RATE_MBPS * vq->weight / total_weight;
 		}
 	}
@@ -194,6 +196,11 @@ void iso_vq_drain(struct iso_vq *vq, u64 dt) {
 
 	/* The rate is at least vq's rate */
 	rate = vq->weight * rxctx->rcp_rate;
+
+	/* If we want to cap a VQ's rate, do it now */
+	if (vq->is_static) {
+		rate = min_t(u64, rate, vq->rate);
+	}
 
 	/* The control algorithms */
 	{

@@ -434,6 +434,75 @@ module_param_call(set_vq_weight, iso_sys_set_vq_weight, iso_sys_noget, NULL, S_I
 
 
 /*
+ * Set VQ's Rate (cap its rate in Mb/s)
+ * echo -n dev %s 00:00:00:00:01:01 rate 1000
+ * > /sys/module/perfiso/parameters/set_vq_rate
+ */
+extern spinlock_t vq_spinlock;
+static int iso_sys_set_vq_rate(const char *val, struct kernel_param *kp) {
+	char _vqc[128], _devname[128];
+	iso_class_t vqclass;
+	struct iso_vq *vq;
+	unsigned long flags;
+	int n, ret = 0, rate;
+	struct iso_rx_context *rxctx;
+	struct net_device *dev = NULL;
+
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
+	rcu_read_lock();
+	n = sscanf(val, "dev %s %s rate %d", _devname, _vqc, &rate);
+	if(n != 3) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev = iso_search_netdev(_devname);
+	if ((dev == NULL) || !iso_enabled(dev)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	rxctx = iso_rxctx_dev(dev);
+	vqclass = iso_class_parse(_vqc);
+	vq = iso_vq_find(vqclass, rxctx);
+	if(vq == NULL) {
+		printk(KERN_INFO "perfiso: Could not find vq %s\n", _vqc);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if(rate < 0 || rate > ISO_VQ_DRAIN_RATE_MBPS) {
+		printk(KERN_INFO "perfiso: Invalid rate.  Rate must lie in [0, %d]\n",
+		       ISO_VQ_DRAIN_RATE_MBPS);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	spin_lock_irqsave(&rxctx->vq_spinlock, flags);
+	if (rate > 0) {
+		vq->rate = (u64)rate;
+		vq->is_static = 1;
+	} else {
+		vq->is_static = 0;
+		iso_vq_calculate_rates(rxctx);
+	}
+	spin_unlock_irqrestore(&rxctx->vq_spinlock, flags);
+
+	printk(KERN_INFO "perfiso: Set rate %d (static? %d) for vq %s on dev %s\n",
+	       rate, vq->is_static, _vqc, _devname);
+ out:
+
+	rcu_read_unlock();
+	up(&config_mutex);
+	return ret;
+}
+
+module_param_call(set_vq_rate, iso_sys_set_vq_rate, iso_sys_noget, NULL, S_IWUSR);
+
+
+/*
  * Delete a txc.
  * echo -n dev eth0 txc 00:00:00:00:01:01
  * > /sys/module/perfiso/parameters/delete_txc
