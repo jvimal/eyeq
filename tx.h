@@ -51,6 +51,9 @@ struct iso_tx_class {
 	u32 tx_rate, tx_rate_smooth;
 	u32 min_rate;
 
+	u32 max_rate;
+	u8 is_static;
+
 	/* Allocate from process context */
 	struct work_struct allocator;
 	struct iso_tx_context *txctx;
@@ -163,6 +166,9 @@ static inline void iso_txc_recompute_rates(struct iso_tx_context *context) {
 	for_each_txc(txc, context) {
 		txc->min_rate = txc->weight * ISO_MAX_TX_RATE / context->txc_total_weight;
 		txc->rl.rate = txc->min_rate;
+		if (txc->is_static) {
+			txc->rl.rate = min_t(u64, txc->max_rate, txc->rl.rate);
+		}
 	}
 	spin_unlock_irqrestore(&context->txc_spinlock, flags);
 }

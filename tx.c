@@ -131,6 +131,9 @@ inline void iso_txc_tick(struct iso_tx_context *context) {
 			rl->rate = context->rate * txc->weight;
 			rl->rate = min_t(u64, ISO_MAX_TX_RATE, rl->rate);
 			rl->rate = max_t(u64, txc->min_rate, rl->rate);
+			if (txc->is_static) {
+				rl->rate = min_t(u64, txc->max_rate, rl->rate);
+			}
 		}
 	skip:
 		spin_unlock_irqrestore(&context->txc_spinlock, flags);
@@ -362,6 +365,9 @@ void iso_txc_init(struct iso_tx_class *txc) {
 	txc->tx_rate = 0;
 	txc->min_rate = ISO_MAX_TX_RATE;
 	txc->tx_rate_smooth = 0;
+
+	txc->max_rate = ISO_MAX_TX_RATE;
+	txc->is_static = 0;
 
 	INIT_WORK(&txc->allocator, iso_txc_allocator);
 }

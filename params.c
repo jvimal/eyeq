@@ -371,6 +371,77 @@ module_param_call(set_txc_weight, iso_sys_set_txc_weight, iso_sys_noget, NULL, S
 
 
 /*
+ * Set TXC's rate
+ * echo -n dev eth0 00:00:00:00:01:01 rate <w>
+ * > /sys/module/perfiso/parameters/set_txc_rate
+ */
+static int iso_sys_set_txc_rate(const char *val, struct kernel_param *kp) {
+	char _txc[128], _devname[128];
+	iso_class_t klass;
+	struct iso_tx_class *txc;
+	unsigned long flags;
+	int n, ret = 0, rate;
+	struct net_device *dev = NULL;
+	struct iso_tx_context *txctx;
+
+	if(down_interruptible(&config_mutex))
+		return -EINVAL;
+
+	rcu_read_lock();
+	n = sscanf(val, "dev %s %s rate %d", _devname, _txc, &rate);
+	if(n != 3) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev = iso_search_netdev(_devname);
+	if ((dev == NULL) || !iso_enabled(dev)) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	txctx = iso_txctx_dev(dev);
+	klass = iso_class_parse(_txc);
+	txc = iso_txc_find(klass, txctx);
+	if(txc == NULL) {
+		printk(KERN_INFO "perfiso: Could not find txc %s\n", _txc);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if(rate < 0 || rate > 1024) {
+		printk(KERN_INFO "perfiso: Invalid rate.  Rate must lie in [1, %d]\n",
+		       ISO_MAX_TX_RATE);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	spin_lock_irqsave(&txc->writelock, flags);
+	if (rate == 0) {
+		txc->is_static = 0;
+		txc->max_rate = ISO_MAX_TX_RATE;
+	} else {
+		txc->is_static = 1;
+		txc->max_rate = rate;
+	}
+	spin_unlock_irqrestore(&txc->writelock, flags);
+
+	iso_txc_recompute_rates(txctx);
+
+	printk(KERN_INFO "perfiso: Set rate %d (is_static? %d) for txc %s on dev %s\n",
+	       rate, txc->is_static, _txc, _devname);
+ out:
+
+	rcu_read_unlock();
+	up(&config_mutex);
+	return ret;
+}
+
+module_param_call(set_txc_rate, iso_sys_set_txc_rate, iso_sys_noget, NULL, S_IWUSR);
+
+
+
+/*
  * Set VQ's weight
  * echo -n dev %s 00:00:00:00:01:01 weight <w>
  * > /sys/module/perfiso/parameters/set_vq_weight
