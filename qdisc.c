@@ -272,11 +272,21 @@ static int mq_dump_class_stats(struct Qdisc *sch, unsigned long cl,
 			       struct gnet_dump *d)
 {
 	struct netdev_queue *dev_queue = mq_queue_get(sch, cl);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,18,0)
+	struct gnet_stats_basic_cpu __percpu *cpu_bstats = NULL;
+	struct gnet_stats_queue __percpu *cpu_qstats = NULL;
+	__u32 qlen;
+#endif
 	sch = dev_queue->qdisc_sleeping;
 	sch->qstats.qlen = sch->q.qlen;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,18,0)
 	if (gnet_stats_copy_basic(d, &sch->bstats) < 0 ||
 	    gnet_stats_copy_queue(d, &sch->qstats) < 0)
+#else
+	qlen = sch->q.qlen;
+	if (gnet_stats_copy_basic(d, cpu_bstats, &sch->bstats) < 0 ||
+	    gnet_stats_copy_queue(d, cpu_qstats, &sch->qstats, qlen) < 0)
+#endif
 		return -1;
 	return 0;
 }

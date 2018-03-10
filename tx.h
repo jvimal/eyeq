@@ -139,10 +139,15 @@ static inline struct iso_tx_class *iso_txc_find(iso_class_t klass, struct iso_tx
 	struct hlist_head *head = iso_txc_find_bucket(klass, context);
 	struct iso_tx_class *txc;
 	struct iso_tx_class *found = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
 	struct hlist_node *n;
-
+#endif
 	rcu_read_lock();
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
 	hlist_for_each_entry_rcu(txc, n, head, hash_node) {
+#else
+	hlist_for_each_entry_rcu(txc, head, hash_node) {
+#endif
 		if(iso_class_cmp(txc->klass, klass) == 0) {
 			found = txc;
 			break;
