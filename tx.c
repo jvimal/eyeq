@@ -1,6 +1,7 @@
 
 #include <linux/netfilter_bridge.h>
 #include <linux/if_ether.h>
+#include <linux/list.h>
 #include "tx.h"
 #include "vq.h"
 
@@ -57,7 +58,10 @@ int iso_tx_init(struct iso_tx_context *context) {
 void iso_tx_exit(struct iso_tx_context *context) {
 	int i;
 	struct hlist_head *head;
-	struct hlist_node *node, *nextnode;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
+	struct *nextnode;
+#endif
+	struct hlist_node *node;
 	struct iso_tx_class *txc;
 
 	iso_rl_exit(context->rlcb);
@@ -66,7 +70,11 @@ void iso_tx_exit(struct iso_tx_context *context) {
 
 	for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 		head = &context->iso_tx_bucket[i];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
 		hlist_for_each_entry_safe(txc, nextnode, node, head, hash_node) {
+#else
+		hlist_for_each_entry_safe(txc, node, head, hash_node) {
+#endif
 			hlist_del(&txc->hash_node);
 			iso_txc_free(txc);
 		}
@@ -143,7 +151,9 @@ inline void iso_txc_tick(struct iso_tx_context *context) {
 /* Called with rcu lock */
 void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	int i, nth;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 	struct hlist_node *node;
+#endif
 	struct hlist_head *head;
 	struct iso_rl *rl;
 	struct iso_per_dest_state *state;
@@ -171,7 +181,11 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	seq_printf(s, "per dest state:\n");
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
 		head = &txc->state_bucket[i];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 		hlist_for_each_entry_rcu(state, node, head, hash_node) {
+#else
+		hlist_for_each_entry_rcu(state, head, hash_node) {
+#endif
 			seq_printf(s, "ip %x   rl %p   hash %d\n", state->ip_key, state->rl, i);
 			iso_rc_show(&state->tx_rc, s);
 		}
@@ -182,8 +196,11 @@ void iso_txc_show(struct iso_tx_class *txc, struct seq_file *s) {
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {
 		head = &txc->rl_bucket[i];
 		nth = 0;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 		hlist_for_each_entry_rcu(rl, node, head, hash_node) {
+#else
+		hlist_for_each_entry_rcu(rl, head, hash_node) {
+#endif
 			if(nth == 0) {
 				seq_printf(s, "hash %d ", i);
 			}
@@ -243,8 +260,9 @@ struct iso_per_dest_state
 	struct iphdr *iph;
 	struct iso_per_dest_state *state = NULL, *nextstate;
 	struct hlist_head *head;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 	struct hlist_node *node;
-
+#endif
 	u32 ip, hash;
 
 	eth = eth_hdr(skb);
@@ -264,7 +282,11 @@ struct iso_per_dest_state
 	head = &txc->state_bucket[hash];
 
 	state = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 	hlist_for_each_entry_rcu(state, node, head, hash_node) {
+#else
+	hlist_for_each_entry_rcu(state, head, hash_node) {
+#endif
 		if(state->ip_key == ip)
 			break;
 	}
@@ -276,14 +298,17 @@ struct iso_per_dest_state
 		return NULL;
 
 	/* Check again; shouldn't we use a rwlock_t? */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 	hlist_for_each_entry_rcu(state, node, head, hash_node) {
+#else
+	hlist_for_each_entry_rcu(state, head, hash_node) {
+#endif
 		if(state->ip_key == ip)
 			break;
 	}
 
 	if(unlikely(state != NULL))
 		goto unlock;
-
 	list_for_each_entry_safe(state, nextstate, &txc->prealloc_state_list, prealloc_list) {
 		state->ip_key = ip;
 		state->rl = iso_pick_rl(txc, ip);
@@ -318,11 +343,17 @@ void iso_state_free(struct iso_per_dest_state *state) {
 struct iso_rl *iso_pick_rl(struct iso_tx_class *txc, __le32 ip) {
 	struct iso_rl *rl = NULL, *temp;
 	struct hlist_head *head;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 	struct hlist_node *node;
+#endif
 	rcu_read_lock();
 
 	head = &txc->rl_bucket[jhash_1word(ip, 0xfaceface) & (ISO_MAX_RL_BUCKETS - 1)];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)                           
 	hlist_for_each_entry_rcu(rl, node, head, hash_node) {
+#else
+	hlist_for_each_entry_rcu(rl, head, hash_node) {
+#endif
 		if(rl->ip == ip)
 			goto found;
 	}
@@ -453,7 +484,10 @@ void iso_txc_prealloc(struct iso_tx_class *txc, int num) {
 /* Called with rcu lock */
 void iso_txc_free(struct iso_tx_class *txc) {
 	struct hlist_head *head;
-	struct hlist_node *n, *nn;
+	struct hlist_node *n;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
+	struct hlist_node *nn;
+#endif
 	struct iso_rl *rl, *temprl;
 	struct iso_per_dest_state *state, *tempstate;
 	int i;
@@ -463,7 +497,11 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	/* Kill each rate limiter */
 	for(i = 0; i < ISO_MAX_RL_BUCKETS; i++) {
 		head = &txc->rl_bucket[i];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
 		hlist_for_each_entry_safe(rl, n, nn, head, hash_node) {
+#else
+		hlist_for_each_entry_safe(rl, n, head, hash_node) {
+#endif
 			hlist_del_init_rcu(&rl->hash_node);
 			iso_rl_free(rl);
 		}
@@ -472,7 +510,11 @@ void iso_txc_free(struct iso_tx_class *txc) {
 	/* Kill each state */
 	for(i = 0; i < ISO_MAX_STATE_BUCKETS; i++) {
 		head = &txc->state_bucket[i];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
 		hlist_for_each_entry_safe(state, n, nn, head, hash_node) {
+#else
+		hlist_for_each_entry_safe(state, n, head, hash_node) {
+#endif
 			hlist_del_init_rcu(&state->hash_node);
 			iso_state_free(state);
 		}

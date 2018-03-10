@@ -37,7 +37,9 @@ static void iso_stats_proc_seq_stop(struct seq_file *s, void *v)
 static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 {
 	struct hlist_head *head;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
 	struct hlist_node *node;
+#endif
 	struct iso_tx_class *txc;
 	struct iso_vq *vq, *vq_next;
 	struct iso_tx_context *txctx, *txctx_next;
@@ -50,7 +52,11 @@ static int iso_stats_proc_seq_show(struct seq_file *s, void *v)
 
 		for(i = 0; i < ISO_MAX_TX_BUCKETS; i++) {
 			head = &txctx->iso_tx_bucket[i];
-			hlist_for_each_entry_rcu(txc, node, head, hash_node) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
+				hlist_for_each_entry_rcu(txc, node, head, hash_node) {
+#else
+				hlist_for_each_entry_rcu(txc, head, hash_node) {
+#endif
 				iso_txc_show(txc, s);
 			}
 		}
@@ -107,7 +113,9 @@ static int iso_csvstats_proc_seq_show(struct seq_file *s, void *v) {
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 static struct proc_dir_entry *iso_stats_proc;
+#endif
 
 static struct seq_operations iso_stats_proc_seq_ops = {
 	.start = iso_stats_proc_seq_start,
@@ -131,7 +139,9 @@ static struct file_operations iso_stats_proc_file_ops = {
 
 
 /* For program friendly CSV stats */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 static struct proc_dir_entry *iso_csvstats_proc;
+#endif
 
 static struct seq_operations iso_csvstats_proc_seq_ops = {
 	.start = iso_stats_proc_seq_start,
@@ -157,6 +167,7 @@ static struct file_operations iso_csvstats_proc_file_ops = {
 int iso_stats_init() {
 	int ret = 0;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	iso_stats_proc = create_proc_entry(ISO_STATS_PROC_NAME, 0, NULL);
 	if(iso_stats_proc) {
 		iso_stats_proc->proc_fops = &iso_stats_proc_file_ops;
@@ -164,7 +175,6 @@ int iso_stats_init() {
 		ret = 1;
 		goto out;
 	}
-
 	iso_csvstats_proc = create_proc_entry(ISO_CSVSTATS_PROC_NAME, 0, NULL);
 	if(iso_csvstats_proc) {
 		iso_csvstats_proc->proc_fops = &iso_csvstats_proc_file_ops;
@@ -173,8 +183,15 @@ int iso_stats_init() {
 		remove_proc_entry(ISO_STATS_PROC_NAME, NULL);
 		goto out;
 	}
+#else
+	proc_create(ISO_STATS_PROC_NAME, 0, NULL, &iso_stats_proc_file_ops);
+	proc_create(ISO_CSVSTATS_PROC_NAME, 0, NULL, &iso_csvstats_proc_file_ops);
+#endif
+	
 
- out:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
+out:
+#endif
 	return ret;
 }
 

@@ -102,10 +102,13 @@ void iso_vq_show(struct iso_vq *, struct seq_file *);
 static inline struct iso_vq *iso_vq_find(iso_class_t klass, struct iso_rx_context *rxctx) {
 	u32 hash = iso_class_hash(klass);
 	struct hlist_head *head = &rxctx->vq_bucket[hash & (ISO_MAX_VQ_BUCKETS - 1)];
-	struct hlist_node *node;
 	struct iso_vq *vq;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,9,0)
+	struct hlist_node *node;
 	hlist_for_each_entry_rcu(vq, node, head, hash_node) {
+#else
+	hlist_for_each_entry_rcu(vq, head, hash_node) {
+#endif
 		if(iso_class_cmp(vq->klass, klass) == 0)
 			return vq;
 	}
